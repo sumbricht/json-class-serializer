@@ -2,6 +2,12 @@ import { Ctor, CtorOrThunk, JsonClassData, resolveThunk } from "./types.ts";
 import { classDataByCtor, classDataByName } from "./metadata.ts";
 
 export class JsonClassSerializer {
+	private static _defaultInstance: JsonClassSerializer | undefined
+	public static get defaultInstance(): JsonClassSerializer {
+		if(!this._defaultInstance) this._defaultInstance = new JsonClassSerializer
+		return this._defaultInstance
+	}
+
 	constructor(protected nameResolver: (obj: any) => string = obj => obj['#type']) {}
 	
 	// public interface

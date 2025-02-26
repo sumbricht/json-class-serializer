@@ -1,3 +1,4 @@
+import { JsonClassSerializer } from "./mod.ts";
 import { Ctor, CtorOrThunk, JsonClassData, JsonProperty, MaybeThunk, resolveThunk } from "./types.ts";
 
 
@@ -16,6 +17,11 @@ export function jsonClass(name: MaybeThunk<string>): ClassDecorator {
 		data.name = resolveThunk(name)
 		data.ctor = ctor
 		classDataByName.set(data.name, data)
+
+		ctor.prototype.toJSON = function() {
+			const jsc = JsonClassSerializer.defaultInstance
+			return jsc.serializeToObject(this)
+		}
 	}
 }
 
@@ -27,6 +33,7 @@ export function jsonProperty(ctorOrThunk?: CtorOrThunk): PropertyDecorator {
 		})
 	}
 }
+
 export function jsonArrayProperty(ctorOrThunk: CtorOrThunk): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {

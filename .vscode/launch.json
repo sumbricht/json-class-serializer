@@ -18,6 +18,7 @@
 				"--inspect-wait",
 				"--allow-all"
 			],
+			"console": "integratedTerminal",
 			"attachSimplePort": 9229
 		},
 	]

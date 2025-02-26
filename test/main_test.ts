@@ -92,6 +92,14 @@ Deno.test(function serializeClassProperties() {
   assertEquals(json, '{"#type":"Person","__type":"Person","name":"John","dob":"2000-01-01T00:00:00.000Z","numberOfChildren":2,"isMarried":true,"address":{"city":"New York"},"accountBalance":"9007199254740991000","nationalities":[{"country":"Switzerland"},{"country":"USA"}],"nicknames":["Johnny","John"],"children":[["Alice",{"__type":"Person","name":"Alice","dob":"2010-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[]}],["Bob",{"__type":"Person","name":"Bob","dob":"2012-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[]}]]}')
 });
 
+Deno.test(function serializeViaJsonStringify() {
+  const person = createTestPerson()
+  const jsc = new JsonClassSerializer
+  const jsonFromJsc = jsc.serialize(person)
+  const jsonFromJsonStringify = JSON.stringify(person)
+  assertEquals(jsonFromJsc, jsonFromJsonStringify)
+});
+
 Deno.test(function deserializeClassWithClassHint() {
   const person = createTestPerson()
   const jsc = new JsonClassSerializer
