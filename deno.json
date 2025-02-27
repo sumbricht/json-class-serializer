@@ -13,6 +13,10 @@
   "tasks": {
     "build": {
       "description": "Build the project to .js and .d.ts files",
+      "command": "node_modules/.bin/tsup src/mod.ts src/server.ts --format esm,cjs --dts"
+    },
+    "build_old": {
+      "description": "Build the project to .js and .d.ts files",
       "command": "rm -rf dist && npx rolldown -c build/rolldown.config.mjs && npx rollup -c build/rollup.config.js && rm -rf dist/declarations"
     }
   },

@@ -4,7 +4,7 @@ const config = [
     input: 'dist/declarations/mod.d.ts',
     output: {
       file: 'dist/index.d.ts',
-      format: 'esm'
+      format: 'cjs'
     },
     plugins: [dts()]
   }

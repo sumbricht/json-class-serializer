@@ -6,7 +6,7 @@ export default defineConfig([
         input: 'src/mod.ts',
         output: {
             file: 'dist/index.js',
-            format: 'esm',
+            format: 'cjs',
         },
         plugins: [typescript({
             compilerOptions: {

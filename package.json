@@ -1,11 +1,23 @@
 {
   "name": "@sumbricht/json-class-serializer",
-  "main": "dist/index.js",
+  "main": "dist/mod.js",
+  "module": "dist/mod.mjs",
+  "types": "dist/mod.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/mod.d.ts",
+      "import": "./dist/mod.mjs",
+      "require": "./dist/mod.js"
+    }
+  },
   "devDependencies": {
     "@rollup/plugin-typescript": "^12.1.2",
+    "@types/node": "^22.13.5",
     "rolldown": "^1.0.0-beta.3",
     "rollup": "^4.34.8",
     "rollup-plugin-dts": "^6.1.1",
-    "tslib": "^2.8.1"
+    "tslib": "^2.8.1",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3"
   }
 }
