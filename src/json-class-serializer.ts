@@ -7,8 +7,15 @@ export class JsonClassSerializer {
 		if(!this._defaultInstance) this._defaultInstance = new JsonClassSerializer
 		return this._defaultInstance
 	}
+	public static defaultOptions: JsonClassSerializerOptions = {
+		nameResolver: obj => obj['#type'] || obj['__type']
+	}
 
-	constructor(protected nameResolver: (obj: any) => string = obj => obj['#type']) {}
+	protected options: JsonClassSerializerOptions
+
+	constructor(options?: Partial<JsonClassSerializerOptions>) {
+		this.options = { ...JsonClassSerializer.defaultOptions, ...options }
+	}
 	
 	// public interface
 
@@ -51,7 +58,14 @@ export class JsonClassSerializer {
 	
 	protected serializeObject(value: any, needsTypeProperty: boolean): any {
 		const ctor = value.constructor
-		const jsonData = classDataByCtor.get(ctor)
+		let jsonData = classDataByCtor.get(ctor)
+		if(!jsonData) {
+			const typeName = this.options.nameResolver(value)
+			if(typeName) {
+				jsonData = classDataByName.get(typeName)
+			}
+		}
+		
 		if(jsonData) {
 			const obj: any = {}
 			if(needsTypeProperty) obj['#type'] = jsonData.name
@@ -89,6 +103,8 @@ export class JsonClassSerializer {
 		const type = typeof value
 		if(!valueClassData && (type == 'string' || type === 'number' || type === 'boolean')) return value
 		
+		if(Array.isArray(value)) return this.deserializeArray(value, valueClassData)
+
 		if(valueClassData || type === 'object') return this.deserializeObject(value, valueClassData)
 		return value
 	}
@@ -101,7 +117,7 @@ export class JsonClassSerializer {
 
 	protected deserializeObject(value: any, valueClassData: JsonClassData | undefined): any {
 		if(!valueClassData) {
-			const typeName = this.nameResolver(value)
+			const typeName = this.options.nameResolver(value)
 			if(typeName) {
 				valueClassData = classDataByName.get(typeName)
 			}
@@ -173,4 +189,8 @@ export class JsonClassSerializer {
 			.map(([key, value]) => [this.deserializeFromObjectInternal(key, keyClassData), this.deserializeFromObjectInternal(value, valueClassData)])
 		return new Map(entries)
 	}
+}
+
+export type JsonClassSerializerOptions = {
+	nameResolver: (obj: any) => string
 }

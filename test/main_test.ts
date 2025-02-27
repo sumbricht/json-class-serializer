@@ -115,3 +115,50 @@ Deno.test(function deserializeClassWithoutClassHint() {
   const deserialized = new JsonClassSerializer().deserialize(json, undefined)
   assertSimilarInstances(deserialized, person)
 });
+
+Deno.test(function deserializeClassWithOnlyAlternativeTypeProperty() {
+  const person = createTestPerson()
+  const jsc = new JsonClassSerializer
+  const json = jsc.serialize(person)
+  const obj = JSON.parse(json)
+  delete obj['#type']
+
+  assertEquals(obj['#type'], undefined)
+  assertEquals(obj['__type'], 'Person')
+  const deserialized = new JsonClassSerializer().deserializeFromObject(obj, undefined)
+  assertSimilarInstances(deserialized, person)
+});
+
+Deno.test(function deserializeClassWithinPlainObject() {
+  const person = createTestPerson()
+  const obj = { foo: { bar: { baz: [person] } } }
+  const jsc = new JsonClassSerializer
+  const json = jsc.serialize(obj)
+  
+  const plainObj = JSON.parse(json)
+  assertEquals(plainObj.foo.bar.baz[0]['#type'], 'Person')
+  
+  const deserialized = new JsonClassSerializer().deserialize(json)
+  assertSimilarInstances(deserialized, obj)
+});
+
+Deno.test(function serializeVmProxyOfClassInstance() {
+  const person = createTestPerson()
+
+  let wasConstructorAccessed = false
+  const proxy = new Proxy(person, {
+    get(target, prop) {
+      if(prop === 'constructor') {
+        wasConstructorAccessed = true
+        return Object
+      }
+      return Reflect.get(target, prop)
+    }
+  })
+
+  const jsc = new JsonClassSerializer
+  const json = jsc.serialize(proxy)
+  assertEquals(wasConstructorAccessed, true)
+  const deserialized = new JsonClassSerializer().deserialize(json, undefined)
+  assertSimilarInstances(deserialized, person)
+});
