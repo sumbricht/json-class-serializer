@@ -1,10 +1,9 @@
-import { assert, assertEquals, assertInstanceOf } from "@std/assert";
+import { assert, assertEquals,  } from "@std/assert";
 import { classDataByCtor, ClassDataSymbol, jsonArrayProperty, jsonClass, jsonMapProperty, jsonProperty, jsonSetProperty } from "../src/metadata.ts";
 import { JsonClassSerializer } from "../src/json-class-serializer.ts";
 import { assertSimilarInstances } from "./test-util.ts";
 import { getJsonClassName } from "../src/utils.ts";
 import { AnyType } from "../src/types.ts";
-import { Buffer } from "node:buffer";
 
 @jsonClass()
 class Address {
@@ -55,7 +54,7 @@ class Person {
   dob: Date = new Date('1900-01-01')
   @jsonProperty(Number)
   numberOfChildren: number = 0
-  @jsonProperty()
+  @jsonProperty(Boolean)
   isMarried: boolean = false
   @jsonProperty(Address)
   address!: Address
@@ -82,8 +81,8 @@ class Person {
     if(init) Object.assign(this, init)
   }
 
-  static createMinimal(name: string, dob: Date) {
-    return new Person({ name, dob } as Partial<Person> as any)
+  static createMinimal(properties: Partial<Person>) {
+    return new Person(properties as any)
   }
 }
 
@@ -100,8 +99,8 @@ const createTestPerson = () => new Person({
   ],
   nicknames: new Set(['Johnny', 'John']),
   children: new Map([
-    ['Alice', Person.createMinimal('Alice', new Date('2010-01-01'))],
-    ['Bob', Person.createMinimal('Bob', new Date('2012-01-01'))],
+    ['Alice', Person.createMinimal({ name: 'Alice', dob: new Date('2010-01-01') })],
+    ['Bob', Person.createMinimal({ name: 'Bob', dob: new Date('2012-01-01') })],
   ]),
   accounts: [
     new Account({ currency: 'USD', balance: 1000.25 }),
@@ -112,21 +111,21 @@ const createTestPerson = () => new Person({
 
 Deno.test(function serializeObjectWithPrimitives() {
   const jsc = new JsonClassSerializer
-  const json = jsc.serialize({ a: 1, b: "2", c: true, d: new Date('2000-01-01') })
+  const json = jsc.serializeToJson({ a: 1, b: "2", c: true, d: new Date('2000-01-01') })
   assertEquals(json, '{"a":1,"b":"2","c":true,"d":"2000-01-01T00:00:00.000Z"}')
 });
 
 Deno.test(function serializeClassProperties() {
   const person = createTestPerson()
   const jsc = new JsonClassSerializer
-  const json = jsc.serialize(person)
+  const json = jsc.serializeToJson(person)
   assertEquals(json, '{"#type":"Person","__type":"Person","name":"John","dob":"2000-01-01T00:00:00.000Z","numberOfChildren":2,"isMarried":true,"address":{"city":"New York"},"accountBalance":"9007199254740991000","nationalities":[{"country":"Switzerland"},{"country":"USA"}],"nicknames":["Johnny","John"],"children":[["Alice",{"__type":"Person","name":"Alice","dob":"2010-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[],"accounts":[]}],["Bob",{"__type":"Person","name":"Bob","dob":"2012-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[],"accounts":[]}]],"accounts":[[0,"USD 1000.25"],[1,"EUR 2000"]]}')
 });
 
 Deno.test(function serializeViaJsonStringify() {
   const person = createTestPerson()
   const jsc = new JsonClassSerializer
-  const jsonFromJsc = jsc.serialize(person)
+  const jsonFromJsc = jsc.serializeToJson(person)
   const jsonFromJsonStringify = JSON.stringify(person)
   assertEquals(jsonFromJsc, jsonFromJsonStringify)
 });
@@ -134,44 +133,89 @@ Deno.test(function serializeViaJsonStringify() {
 Deno.test(function deserializeClassWithClassHint() {
   const person = createTestPerson()
   const jsc = new JsonClassSerializer
-  const json = jsc.serialize(person)
-  const deserialized = new JsonClassSerializer().deserialize(json, Person)
+  const json = jsc.serializeToJson(person)
+  const deserialized = new JsonClassSerializer().deserializeFromJson(json, Person)
   assertSimilarInstances(deserialized, person)
 });
 
 Deno.test(function deserializeClassWithoutClassHint() {
   const person = createTestPerson()
   const jsc = new JsonClassSerializer
-  const json = jsc.serialize(person)
-  const deserialized = new JsonClassSerializer().deserialize(json, undefined)
+  const json = jsc.serializeToJson(person)
+  const deserialized = new JsonClassSerializer().deserializeFromJson(json, undefined)
   assertSimilarInstances(deserialized, person)
 });
 
 Deno.test(function deserializeClassWithOnlyAlternativeTypeProperty() {
   const person = createTestPerson()
-  const jsc = new JsonClassSerializer
-  const json = jsc.serialize(person)
+  const jsc = new JsonClassSerializer({ serializationPropertyName: '__type' })
+  const json = jsc.serializeToJson(person)
   const obj = JSON.parse(json)
-  delete obj['#type']
 
   assertEquals(obj['#type'], undefined)
   assertEquals(obj['__type'], 'Person')
-  const deserialized = new JsonClassSerializer().deserializeFromObject(obj, undefined)
+  const deserialized = jsc.deserializeFromObject(obj, undefined)
   assertSimilarInstances(deserialized, person)
 });
+
+Deno.test(function deserializeWithManualClassResolution() {
+  const json = '{"name":"John"}'
+  const minimalPersonData: Partial<Person> = { name: 'John' }
+  const minimalPerson = Person.createMinimal(minimalPersonData);
+  
+  const deserializedWithoutResolution = new JsonClassSerializer().deserializeFromJson(json)
+  assertSimilarInstances(deserializedWithoutResolution, minimalPersonData)
+
+  const deserializedWithClassHint = new JsonClassSerializer().deserializeFromJson(json, Person)
+  assertSimilarInstances(deserializedWithClassHint, minimalPerson)
+
+  const deserializedWithNameResolution = new JsonClassSerializer({ deserializationClassResolver: () => 'Person' }).deserializeFromJson(json)
+  assertSimilarInstances(deserializedWithNameResolution, minimalPerson)
+
+  const deserializedWithClassResolution = new JsonClassSerializer({ deserializationClassResolver: () => Person }).deserializeFromJson(json)
+  assertSimilarInstances(deserializedWithClassResolution, minimalPerson)
+})
 
 Deno.test(function deserializeClassWithinPlainObject() {
   const person = createTestPerson()
   const obj = { foo: { bar: { baz: [person] } } }
   const jsc = new JsonClassSerializer
-  const json = jsc.serialize(obj)
+  const json = jsc.serializeToJson(obj)
   
   const plainObj = JSON.parse(json)
   assertEquals(plainObj.foo.bar.baz[0]['#type'], 'Person')
   
-  const deserialized = new JsonClassSerializer().deserialize(json)
+  const deserialized = new JsonClassSerializer().deserializeFromJson(json)
   assertSimilarInstances(deserialized, obj)
 });
+
+Deno.test(function deserializeNestedStructures() {
+  @jsonClass('Person_deserializeNestedStructures')
+  class Person {
+    @jsonProperty(AnyType)
+    addresses: Record<string, Address[]> = {}
+
+    constructor(init: Person) {
+      Object.assign(this, init)
+    }
+  }
+
+  const person = new Person({
+    addresses: {
+      home: [
+        new Address({ city: 'New York' }),
+        new Address({ city: 'Los Angeles' }),
+      ],
+      work: [
+        new Address({ city: 'San Francisco' }),
+      ]
+    }
+  })
+  const jsc = new JsonClassSerializer
+  const json = jsc.serializeToJson(person)
+  const deserialized = jsc.deserializeFromJson(json, Person)
+  assertSimilarInstances(deserialized, person)
+})
 
 Deno.test(function serializeVmProxyOfClassInstance() {
   const person = createTestPerson()
@@ -188,9 +232,9 @@ Deno.test(function serializeVmProxyOfClassInstance() {
   })
 
   const jsc = new JsonClassSerializer
-  const json = jsc.serialize(proxy)
+  const json = jsc.serializeToJson(proxy)
   assertEquals(wasConstructorAccessed, true)
-  const deserialized = new JsonClassSerializer().deserialize(json, undefined)
+  const deserialized = new JsonClassSerializer().deserializeFromJson(json, undefined)
   assertSimilarInstances(deserialized, person)
 });
 
@@ -198,7 +242,7 @@ Deno.test(function serializeWithPrettyPrint() {
   const obj = { foo: { bar: { baz: [1, 2, 3] } } }
   function serializeWithSpace(space: boolean | string | number) {
     const jsc = new JsonClassSerializer({ prettyPrint: space })
-    return jsc.serialize(obj)
+    return jsc.serializeToJson(obj)
   }
   const jsonTrue = serializeWithSpace(true)
   const jsonFalse = serializeWithSpace(false)
@@ -232,13 +276,13 @@ Deno.test(function mapSerializationStrategyKeyValueObjects() {
     ['b', 2],
   ]))
   const jsc = new JsonClassSerializer({ mapSerializationStrategy: 'arrayOfKeyValueObjects' })
-  const json = jsc.serialize(map)
+  const json = jsc.serializeToJson(map)
   assertEquals(json, '{"#type":"Settings","map":[{"key":"a","value":1},{"key":"b","value":2}]}')
   
-  const deserializedWithKeyValueStrategy = jsc.deserialize(json)
+  const deserializedWithKeyValueStrategy = jsc.deserializeFromJson(json)
   assertSimilarInstances(deserializedWithKeyValueStrategy, map)
 
-  const deserializedWithEntriesStrategy = new JsonClassSerializer({ mapSerializationStrategy: 'arrayOfEntries' }).deserialize(json)
+  const deserializedWithEntriesStrategy = new JsonClassSerializer({ mapSerializationStrategy: 'arrayOfEntries' }).deserializeFromJson(json)
   assertSimilarInstances(deserializedWithEntriesStrategy, map)
 });
 
@@ -262,9 +306,9 @@ Deno.test(function classInstanceWithInheritance() {
 
   const cat = new Cat({ name: 'Tom', character: 'lazy', fur: 'fuzzy' })
   const jsc = new JsonClassSerializer
-  const json = jsc.serialize(cat)
+  const json = jsc.serializeToJson(cat)
   assertEquals(json, '{"#type":"Cat","name":"Tom","character":"lazy","fur":"fuzzy"}')
-  const deserialized = jsc.deserialize(json, Cat)
+  const deserialized = jsc.deserializeFromJson(json, Cat)
   assertSimilarInstances(deserialized, cat)
 });
 
@@ -274,7 +318,7 @@ Deno.test(function onlyDeserializePropertiesInJson() {
   
   const minimalJson = '{"#type":"Person","name":"John"}'
   const jsc = new JsonClassSerializer
-  const deserialized = jsc.deserialize(minimalJson, undefined)
+  const deserialized = jsc.deserializeFromJson(minimalJson, undefined)
   assertSimilarInstances(deserialized, minimalPerson)
 })
 
@@ -317,28 +361,28 @@ Deno.test(function anyTypeProperties() {
     set: new Set([1, '2', true]),
   })
   const jsc = new JsonClassSerializer
-  const json = jsc.serialize(foo)
+  const json = jsc.serializeToJson(foo)
   assertEquals(json, '{"#type":"Foo","obj":{"a":1,"b":"2","c":true},"array":[1,"2",true],"map":[[1,"a"],["b",2]],"set":[1,"2",true]}')
-  const deserialized = jsc.deserialize(json, Foo)
+  const deserialized = jsc.deserializeFromJson(json, Foo)
   assertSimilarInstances(deserialized, foo)
 })
 
 Deno.test(function serializeBinaryData() {
   const jsc = new JsonClassSerializer
 
-  const uint8Array = new Uint8Array(new Array(256 * 4 * 1024).fill(0).map((_, idx) => idx % 256))
+  const uint8Array = new Uint8Array(new Array(256 * 4 + 1).fill(0).map((_, idx) => idx % 256))
   const arrayBuffer = uint8Array.buffer
   const dataView = new DataView(arrayBuffer)
 
-  const jsonUint8 = jsc.serialize(uint8Array)
-  const jsonArrayBuffer = jsc.serialize(arrayBuffer)
-  const jsonDataView = jsc.serialize(dataView)
+  const jsonUint8 = jsc.serializeToJson(uint8Array)
+  const jsonArrayBuffer = jsc.serializeToJson(arrayBuffer)
+  const jsonDataView = jsc.serializeToJson(dataView)
   assertEquals(jsonArrayBuffer, jsonUint8)
   assertEquals(jsonDataView, jsonUint8)
 
-  const deserializedArrayBuffer = jsc.deserialize(jsonArrayBuffer, ArrayBuffer)
-  const deserializedUint8 = jsc.deserialize(jsonUint8, Uint8Array)
-  const deserializedDataView = jsc.deserialize(jsonDataView, DataView)
+  const deserializedArrayBuffer = jsc.deserializeFromJson(jsonArrayBuffer, ArrayBuffer)
+  const deserializedUint8 = jsc.deserializeFromJson(jsonUint8, Uint8Array)
+  const deserializedDataView = jsc.deserializeFromJson(jsonDataView, DataView)
   assertSimilarInstances(deserializedArrayBuffer, arrayBuffer)
   assertSimilarInstances(deserializedUint8, uint8Array)
   assertSimilarInstances(deserializedDataView, dataView)

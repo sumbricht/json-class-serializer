@@ -1,17 +1,18 @@
 import { JsonClassSerializer } from "./mod.ts";
-import { Ctor, CtorOrThunk, JsonClassData, JsonPropertyOptions, JsonProperty, MaybeThunk, resolveThunk, JsonClassOptions, AnyType } from "./types.ts";
+import type { CtorOrThunk, JsonClassData, JsonPropertyOptions, JsonProperty, MaybeThunk, JsonClassOptions, AnyType } from "./types.ts";
+import { resolveThunk } from "./types.ts";
 import { arrayBufferToBase64, base64ToArrayBuffer, base64ToDataView, base64ToUint8Array, dataViewToBase64, uint8ArrayToBase64 } from "./utils.ts";
 
 
 export const classDataByCtor = new WeakMap<any, JsonClassData>([
-	[Date, { factoryFn: (value: string) => new Date(value) }],
-	[String, { factoryFn: (value: string) => String(value) }],
-	[Number, { factoryFn: (value: number) => Number(value) }],
-	[Boolean, { factoryFn: (value: boolean) => Boolean(value) }],
-	[BigInt, { factoryFn: (value: string) => BigInt(value) }],
-	[ArrayBuffer, { factoryFn: base64ToArrayBuffer, options: { serializer: arrayBufferToBase64, deserializer: base64ToArrayBuffer } }],
-	[Uint8Array, { factoryFn: base64ToUint8Array, options: { serializer: uint8ArrayToBase64, deserializer: base64ToUint8Array } }],
-	[DataView, { factoryFn: base64ToDataView, options: { serializer: dataViewToBase64, deserializer: base64ToDataView } }],
+	[String, {}],
+	[Number, {}],
+	[Boolean, {}],
+	[Date, { options: { deserializer: (value: string) => new Date(value) } }],
+	[BigInt, { options: { deserializer: (value: string) => BigInt(value) } }],
+	[ArrayBuffer, { options: { serializer: arrayBufferToBase64, deserializer: base64ToArrayBuffer } }],
+	[Uint8Array, { options: { serializer: uint8ArrayToBase64, deserializer: base64ToUint8Array } }],
+	[DataView, { options: { serializer: dataViewToBase64, deserializer: base64ToDataView } }],
 ])
 export const classDataByName = new Map<string, JsonClassData>()
 export const ClassDataSymbol = Symbol.for('JsonClassData')
@@ -91,7 +92,7 @@ function ensureJsonClassData(ctor: any): JsonClassData {
 	return data
 }
 
-function setPropertyInternal(ctor: Object, propertyKey: PropertyKey, propertyData: JsonProperty) {
+function setPropertyInternal(ctor: object, propertyKey: PropertyKey, propertyData: JsonProperty) {
 	const data = ensureJsonClassData(ctor)
 	if (!data.properties) data.properties = new Map()
 	data.properties.set(propertyKey, propertyData)

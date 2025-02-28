@@ -1,4 +1,5 @@
-import { Ctor, CtorOrThunk, EffectiveJsonClassSerializerOptions, EntryOrKeyValue, JsonClassData, JsonClassSerializerOptions, JsonProperty, resolveThunk } from "./types.ts";
+import type { Ctor, CtorOrThunk, Deserialized, EffectiveJsonClassSerializerOptions, EntryOrKeyValue, JsonClassData, JsonClassSerializerOptions, JsonProperty } from "./types.ts";
+import { resolveThunk } from "./types.ts";
 import { classDataByCtor, classDataByName, ClassDataSymbol } from "./metadata.ts";
 
 export class JsonClassSerializer {
@@ -9,13 +10,14 @@ export class JsonClassSerializer {
 	}
 	public static defaultOptions: EffectiveJsonClassSerializerOptions = {
 		classNameResolver: ctor => ctor.name,
-		serializationNameResolver: obj => obj['__type'],
-		deserializationNameResolver: obj => obj['#type'] || obj['__type'],
+		serializationPropertyName: '#type',
+		serializationClassResolver: undefined,
+		deserializationClassResolver: (obj, options) => obj[options.serializationPropertyName],
 		mapSerializationStrategy: 'arrayOfEntries',
 		prettyPrint: false,
 	}
 
-	protected options: EffectiveJsonClassSerializerOptions
+	public options: EffectiveJsonClassSerializerOptions
 
 	constructor(options?: Partial<JsonClassSerializerOptions>) {
 		this.options = { ...JsonClassSerializer.defaultOptions, ...options }
@@ -23,18 +25,18 @@ export class JsonClassSerializer {
 	
 	// public interface
 
-	deserialize<T extends Ctor>(json: string, ctor?: T): InstanceType<T> {
+	deserializeFromJson<T extends Ctor>(json: string, ctor?: T): InstanceType<T> {
 		const obj = JSON.parse(json)
 		return this.deserializeFromObjectInternal(obj, this.getClassData(ctor))
 	}
 	
-	deserializeFromObject<T extends Ctor>(value: any, ctor?: T): InstanceType<T> {
+	deserializeFromObject<Input extends any, T extends Ctor>(value: Input, ctor?: T): Deserialized<Input, T> {
 		return this.deserializeFromObjectInternal(value, this.getClassData(ctor))
 	}
 
 	// protected serialization code
 
-	serialize(value: any): string {
+	serializeToJson(value: any): string {
 		const obj = this.serializeToObjectInternal(value, true);
 		const space = typeof this.options.prettyPrint == 'boolean'
 			? (this.options.prettyPrint ? '\t' : undefined)
@@ -67,9 +69,11 @@ export class JsonClassSerializer {
 		const ctor = value.constructor
 		let jsonData = this.getClassData(ctor) ?? value[ClassDataSymbol]
 		if(!jsonData) {
-			const typeName = this.options.serializationNameResolver(value) || this.options.classNameResolver(ctor)
-			if(typeName) {
-				jsonData = classDataByName.get(typeName)
+			const resolvedType = this.options.serializationClassResolver?.(value, this.options) || this.options.classNameResolver?.(ctor)
+			if(typeof resolvedType == 'string') {
+				jsonData = classDataByName.get(resolvedType)
+			} else if(resolvedType) {
+				jsonData = classDataByCtor.get(resolvedType)
 			}
 		}
 		
@@ -80,7 +84,7 @@ export class JsonClassSerializer {
 			}
 
 			const obj: any = {}
-			if(needsTypeProperty) obj['#type'] = jsonData.name
+			if(needsTypeProperty) obj[this.options.serializationPropertyName] = jsonData.name
 			for(const [key, propData] of this.getAllProperties(jsonData)) {
 				// TODO: implement type checks for properties
 				let propValue = value[key]
@@ -164,9 +168,11 @@ export class JsonClassSerializer {
 
 	protected deserializeObject(value: any, valueClassData: JsonClassData | undefined): any {
 		if(!valueClassData) {
-			const typeName = this.options.deserializationNameResolver(value)
-			if(typeName) {
-				valueClassData = classDataByName.get(typeName)
+			const resolvedType = this.options.deserializationClassResolver?.(value, this.options)
+			if(typeof resolvedType == 'string') {
+				valueClassData = classDataByName.get(resolvedType)
+			} else if(resolvedType) {
+				valueClassData = classDataByCtor.get(resolvedType)
 			}
 		}
 
@@ -176,52 +182,54 @@ export class JsonClassSerializer {
 				// already a class instance that doesn't need further construction; nothing left to do
 				obj = value
 			} else {
-				if(valueClassData.factoryFn) {
-					obj = valueClassData.factoryFn(value)
-				} else {
+				if(valueClassData.ctor) {
 					try {
-						obj = new valueClassData.ctor!()
+						obj = new valueClassData.ctor()
 					} catch {
 						obj = Object.create(valueClassData.ctor.prototype)
 					}
+				} else {
+					obj = value
 				}
-				for(const [key, propData] of this.getAllProperties(valueClassData)) {
-					if(!(key in value)) continue
-					let propValue = value[key]
-					if(propData.options?.deserializer) {
-						propValue = propData.options.deserializer(propValue)
-					}
-					let newValue = propValue
-					if(newValue != null) {
-						switch(propData.type) {
-							case 'class': {
-								const valueClassData = this.getClassData(propData.valueCtorOrThunk)
-								newValue = this.deserializeFromObjectInternal(propValue, valueClassData)
-								break
-							}
-							case 'array': {
-								const valueClassData = this.getClassData(propData.valueCtorOrThunk)
-								newValue = this.deserializeArray(propValue, valueClassData)
-								break
-							}
-							case 'set': {
-								const valueClassData = this.getClassData(propData.valueCtorOrThunk)
-								newValue = this.deserializeSet(propValue, valueClassData)
-								break
-							}
-							case 'map': {
-								const keyClassData = this.getClassData(propData.keyCtorOrThunk)
-								const valueClassData = this.getClassData(propData.valueCtorOrThunk)
-								newValue = this.deserializeMap(propValue, keyClassData, valueClassData)
-								break
-							}
-							case 'any': {
-								newValue = propValue
-								break
+				if(obj && typeof obj == 'object') {
+					for(const [key, propData] of this.getAllProperties(valueClassData)) {
+						if(!(key in value)) continue
+						let propValue = value[key]
+						if(propData.options?.deserializer) {
+							propValue = propData.options.deserializer(propValue)
+						}
+						let newValue = propValue
+						if(newValue != null) {
+							switch(propData.type) {
+								case 'class': {
+									const valueClassData = this.getClassData(propData.valueCtorOrThunk)
+									newValue = this.deserializeFromObjectInternal(propValue, valueClassData)
+									break
+								}
+								case 'array': {
+									const valueClassData = this.getClassData(propData.valueCtorOrThunk)
+									newValue = this.deserializeArray(propValue, valueClassData)
+									break
+								}
+								case 'set': {
+									const valueClassData = this.getClassData(propData.valueCtorOrThunk)
+									newValue = this.deserializeSet(propValue, valueClassData)
+									break
+								}
+								case 'map': {
+									const keyClassData = this.getClassData(propData.keyCtorOrThunk)
+									const valueClassData = this.getClassData(propData.valueCtorOrThunk)
+									newValue = this.deserializeMap(propValue, keyClassData, valueClassData)
+									break
+								}
+								case 'any': {
+									newValue = propValue
+									break
+								}
 							}
 						}
+						Reflect.set(obj, key, newValue)
 					}
-					Reflect.set(obj, key, newValue)
 				}
 			}
 			return obj

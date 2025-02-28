@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assertEquals } from "@std/assert";
 
 export function assertSimilarInstances(a: any, b: any): void {
   assertEquals(a?.constructor, b?.constructor)
