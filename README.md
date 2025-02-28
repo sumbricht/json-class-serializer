@@ -95,7 +95,16 @@ For **collections**, the type of contained values (and for `Map` also the keys) 
 
 *Note:* unline other libraries such as [TypedJSON](https://github.com/JohnWeisz/TypedJSON), JsonClassSerializer does not utilize and type 
 
-TypeScript needs to run with the `experimentalDecorators` option enabled.
+**Important:** TypeScript needs to run with the `experimentalDecorators` option enabled.
+
+Add the following to your `tsconfig.json` (for NodeJS) or `deno.json` (for Deno):
+```
+{
+  "compilerOptions": {
+    "experimentalDecorators": true
+  }
+}
+```
 
 ### 3. Serialize / deserialize your data
 Simple example:

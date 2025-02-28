@@ -1,6 +1,6 @@
 {
   "name": "@sumbricht/json-class-serializer",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "MIT",
   "exports": {
     ".": "./src/mod.ts"
@@ -11,16 +11,6 @@
     "@std/assert": "jsr:@std/assert@1",
     "esbuild": "npm:esbuild@^0.25.0",
     "tslib": "npm:tslib@^2.8.1"
-  },
-  "tasks": {
-    "build": {
-      "description": "Build the project to .js and .d.ts files",
-      "command": "node_modules/.bin/tsup src/mod.ts src/server.ts --format esm,cjs --dts"
-    },
-    "build_old": {
-      "description": "Build the project to .js and .d.ts files",
-      "command": "rm -rf dist && npx rolldown -c build/rolldown.config.mjs && npx rollup -c build/rollup.config.js && rm -rf dist/declarations"
-    }
   },
   "publish": {
     "include": [
