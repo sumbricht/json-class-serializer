@@ -96,3 +96,11 @@ function setPropertyInternal(ctor: Object, propertyKey: PropertyKey, propertyDat
 	if (!data.properties) data.properties = new Map()
 	data.properties.set(propertyKey, propertyData)
 }
+
+// TODO: remove
+export const toJson: ClassDecorator = () => {}
+export const jsonObject = jsonClass
+export const jsonMember = jsonProperty
+export const jsonArrayMember = jsonArrayProperty
+export const jsonMapMember = jsonMapProperty
+export const AnyT = undefined

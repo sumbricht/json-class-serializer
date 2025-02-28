@@ -194,6 +194,22 @@ Deno.test(function serializeVmProxyOfClassInstance() {
   assertSimilarInstances(deserialized, person)
 });
 
+Deno.test(function serializeWithPrettyPrint() {
+  const obj = { foo: { bar: { baz: [1, 2, 3] } } }
+  function serializeWithSpace(space: boolean | string | number) {
+    const jsc = new JsonClassSerializer({ prettyPrint: space })
+    return jsc.serialize(obj)
+  }
+  const jsonTrue = serializeWithSpace(true)
+  const jsonFalse = serializeWithSpace(false)
+  const jsonNumber = serializeWithSpace(3)
+  const jsonString = serializeWithSpace('   ')
+  assertEquals(jsonTrue, `{\n\t"foo": {\n\t\t"bar": {\n\t\t\t"baz": [\n\t\t\t\t1,\n\t\t\t\t2,\n\t\t\t\t3\n\t\t\t]\n\t\t}\n\t}\n}`)
+  assertEquals(jsonFalse, '{"foo":{"bar":{"baz":[1,2,3]}}}')
+  assertEquals(jsonNumber, `{\n   "foo": {\n      "bar": {\n         "baz": [\n            1,\n            2,\n            3\n         ]\n      }\n   }\n}`)
+  assertEquals(jsonString, `{\n   "foo": {\n      "bar": {\n         "baz": [\n            1,\n            2,\n            3\n         ]\n      }\n   }\n}`)
+})
+
 Deno.test(function classInstanceHasJsonClassData() {
   const person = createTestPerson()
   const classData = (person as any)[ClassDataSymbol];

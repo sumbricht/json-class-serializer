@@ -12,6 +12,7 @@ export class JsonClassSerializer {
 		serializationNameResolver: obj => obj['__type'],
 		deserializationNameResolver: obj => obj['#type'] || obj['__type'],
 		mapSerializationStrategy: 'arrayOfEntries',
+		prettyPrint: false,
 	}
 
 	protected options: EffectiveJsonClassSerializerOptions
@@ -35,7 +36,10 @@ export class JsonClassSerializer {
 
 	serialize(value: any): string {
 		const obj = this.serializeToObjectInternal(value, true);
-		return JSON.stringify(obj)
+		const space = typeof this.options.prettyPrint == 'boolean'
+			? (this.options.prettyPrint ? '\t' : undefined)
+			: this.options.prettyPrint
+		return JSON.stringify(obj, undefined, space)
 	}
 	
 	serializeToObject<T=unknown>(value: any): T {

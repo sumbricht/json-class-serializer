@@ -50,6 +50,7 @@ export interface JsonClassSerializerOptions {
 	serializationNameResolver: (obj: any) => string
 	deserializationNameResolver: (obj: any) => string
 	mapSerializationStrategy: 'arrayOfEntries' | 'arrayOfKeyValueObjects'
+	prettyPrint: boolean | string | number
 }
 
 export interface EffectiveJsonClassSerializerOptions extends JsonClassSerializerOptions {
