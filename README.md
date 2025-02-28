@@ -1,6 +1,7 @@
 [![npm version](https://img.shields.io/npm/v/@sumbricht/json-class-serializer.svg?logo=npm&style=for-the-badge)](https://www.npmjs.com/package/@sumbricht/json-class-serializer)
-[![Build Status](https://img.shields.io/npm/l/@sumbricht/json-class-serializer?&style=for-the-badge&color=green)
-](https://github.com/JohnWeisz/@sumbricht/json-class-serializer/blob/master/LICENSE)
+[![jsr version](https://img.shields.io/jsr/v/@sumbricht/json-class-serializer.svg?logo=jsr&style=for-the-badge)](https://jsr.io/@sumbricht/json-class-serializer)
+[![License](https://img.shields.io/github/license/sumbricht/json-class-serializer?&style=for-the-badge&color=green)
+](https://github.com/sumbricht/json-class-serializer/blob/master/LICENSE)
 
 Serializing and deserializing of TypeScript classes and objects to/from JSON strings and plain objects.Work by annotating classes and their properties with [TypeScript decorators](https://github.com/Microsoft/TypeScript-Handbook/blob/master/pages/Decorators.md).
 
