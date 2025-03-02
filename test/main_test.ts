@@ -367,6 +367,58 @@ Deno.test(function anyTypeProperties() {
   assertSimilarInstances(deserialized, foo)
 })
 
+Deno.test(function deserializeUsingAlternativeTypeRegistry() {
+  class Person_deserializeUsingAlternativeTypeRegistry {
+    @jsonProperty()
+    name: string = ''
+
+    constructor(init: Person_deserializeUsingAlternativeTypeRegistry) {
+      Object.assign(this, init)
+    }
+  }
+  const additionalClassesToConsider = {
+    'Person': Person_deserializeUsingAlternativeTypeRegistry
+  }
+  const json = '{"#type":"Person","name":"John"}'
+
+  const jscNormal = new JsonClassSerializer
+  const deserializedNormal = jscNormal.deserializeFromJson(json)
+  assertSimilarInstances(deserializedNormal, Person.createMinimal({ name: 'John' }))
+
+  const jscWithoutAnyClasses = new JsonClassSerializer({
+    useGlobalClassRegistry: false,
+  })
+  const deserializedWithoutAnyClasses = jscWithoutAnyClasses.deserializeFromJson(json)
+  assertSimilarInstances(deserializedWithoutAnyClasses, JSON.parse(json))
+
+  const jscWithAdditionalClasses = new JsonClassSerializer({
+    additionalClassesToConsider,
+  })
+  const deserializedWithAdditional = jscWithAdditionalClasses.deserializeFromJson(json)
+  assertSimilarInstances(deserializedWithAdditional, new Person_deserializeUsingAlternativeTypeRegistry({ name: 'John' }))
+})
+
+Deno.test(function deserializeUnannotatedNestedClasses() {
+  class Bar {
+    @jsonProperty()
+    baz = ''
+  }
+  class Foo {
+    @jsonProperty(Bar)
+    bar = new Bar()
+  }
+  const foo = new Foo()
+  const jsc = new JsonClassSerializer
+  const json = jsc.serializeToJson(foo)
+  assertEquals(json, '{"bar":{"baz":""}}')
+
+  const deserializedWithoutHint = jsc.deserializeFromJson(json, undefined)
+  assertSimilarInstances(deserializedWithoutHint, { bar: { baz: ''}})
+
+  const deserializedWithHint = jsc.deserializeFromJson(json, Foo)
+  assertSimilarInstances(deserializedWithHint, foo)
+})
+
 Deno.test(function serializeBinaryData() {
   const jsc = new JsonClassSerializer
 

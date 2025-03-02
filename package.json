@@ -1,12 +1,16 @@
 {
   "name": "@sumbricht/json-class-serializer",
   "description": "Serialize/deserialize JS classes to/from JSON strings and plain objects",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "type": "module",
+  "main": "dist/mod.cjs",
+  "module": "dist/mod.js",
+  "types": "dist/mod.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/mod.js",
-      "require": "./dist/mod.cjs"
+      "types": "./dist/mod.d.ts",
+      "require": "./dist/mod.cjs",
+      "import": "./dist/mod.js"
     }
   },
   "files": [
@@ -34,12 +38,6 @@
   },
   "homepage": "https://github.com/sumbricht/json-class-serializer#readme",
   "devDependencies": {
-    "@rollup/plugin-typescript": "^12.1.2",
-    "@types/node": "^22.13.5",
-    "rolldown": "^1.0.0-beta.3",
-    "rollup": "^4.34.8",
-    "rollup-plugin-dts": "^6.1.1",
-    "tslib": "^2.8.1",
     "tsup": "^8.4.0",
     "typescript": "^5.7.3"
   }

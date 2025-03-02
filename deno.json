@@ -1,16 +1,12 @@
 {
   "name": "@sumbricht/json-class-serializer",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "license": "MIT",
   "exports": {
     ".": "./src/mod.ts"
   },
   "imports": {
-    "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@^0.11.1",
-    "@rollup/plugin-typescript": "npm:@rollup/plugin-typescript@^12.1.2",
-    "@std/assert": "jsr:@std/assert@1",
-    "esbuild": "npm:esbuild@^0.25.0",
-    "tslib": "npm:tslib@^2.8.1"
+    "@std/assert": "jsr:@std/assert@1"
   },
   "publish": {
     "include": [

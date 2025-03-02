@@ -5,9 +5,9 @@ import { arrayBufferToBase64, base64ToArrayBuffer, base64ToDataView, base64ToUin
 
 
 export const classDataByCtor = new WeakMap<any, JsonClassData>([
-	[String, {}],
-	[Number, {}],
-	[Boolean, {}],
+	[String, { options: { deserializer: (value: string) => value } }],
+	[Number, { options: { deserializer: (value: number) => value } }],
+	[Boolean, { options: { deserializer: (value: boolean) => value } }],
 	[Date, { options: { deserializer: (value: string) => new Date(value) } }],
 	[BigInt, { options: { deserializer: (value: string) => BigInt(value) } }],
 	[ArrayBuffer, { options: { serializer: arrayBufferToBase64, deserializer: base64ToArrayBuffer } }],
@@ -17,14 +17,23 @@ export const classDataByCtor = new WeakMap<any, JsonClassData>([
 export const classDataByName = new Map<string, JsonClassData>()
 export const ClassDataSymbol = Symbol.for('JsonClassData')
 
-export function jsonClass(name?: MaybeThunk<string>, options: JsonClassOptions = {}): ClassDecorator {
+/**
+ * Decorator to globally register a class for serialization/deserialization.
+ * @param name The name of the class. If not provided, the class name will be used (explicitly provide a name if you use mangling during code minimization).
+ * @param options Options for the class.
+ */
+export function jsonClass(name?: MaybeThunk<string | null>, options: JsonClassOptions = {}): ClassDecorator {
 	return (ctor: any) => {
 		const data = ensureJsonClassData(ctor)
-		data.name = resolveThunk(name) || JsonClassSerializer.defaultOptions.classNameResolver(ctor)
+		data.name = name !== null
+			? resolveThunk(name) || JsonClassSerializer.defaultOptions.classNameResolver(ctor)
+			: undefined
 		data.ctor = ctor
 		data.options = options
-		classDataByName.set(data.name, data)
 		ctor.prototype[ClassDataSymbol] = data
+		if(data.name) {
+			classDataByName.set(data.name, data)
+		}
 
 		ctor.prototype.toJSON = function() {
 			const jsc = JsonClassSerializer.defaultInstance
@@ -33,6 +42,11 @@ export function jsonClass(name?: MaybeThunk<string>, options: JsonClassOptions =
 	}
 }
 
+/**
+ * Decorator to register a property for serialization/deserialization. Properties not decorated with this decorator will be ignored when serializing/deserializing.
+ * @param ctorOrThunk The constructor of the property type, or an arrow function that returns the constructor of the property type. Must be provided unless the property type is string/number/boolean.
+ * @param options Options for the property.
+ */
 export function jsonProperty(ctorOrThunk?: CtorOrThunk, options: JsonPropertyOptions = {}): PropertyDecorator {
 	return function(target: any, propertyKey: string | symbol) {
 		setPropertyInternal(target.constructor, propertyKey, {
@@ -43,6 +57,11 @@ export function jsonProperty(ctorOrThunk?: CtorOrThunk, options: JsonPropertyOpt
 	}
 }
 
+/**
+ * Decorator to register a property for serialization/deserialization as an array.
+ * @param ctorOrThunk The constructor of the array item type, or an arrow function that returns the constructor of the array item type. Must always be set; if item typ is string/number/boolean, provide String/Number/Boolean.
+ * @param options Options for the property.
+ */
 export function jsonArrayProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
@@ -53,6 +72,12 @@ export function jsonArrayProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, opt
 	}
 }
 
+/**
+ * Decorator to register a property for serialization/deserialization as a map.
+ * @param keyCtorOrThunk The constructor of the map key type, or an arrow function that returns the constructor of the map key type. Must always be set; if key type is string/number/boolean, provide String/Number/Boolean.
+ * @param valueCtorOrThunk The constructor of the map value type, or an arrow function that returns the constructor of the map value type. Must always be set; if value type is string/number/boolean, provide String/Number/Boolean.
+ * @param options Options for the property.
+ */
 export function jsonMapProperty(keyCtorOrThunk: CtorOrThunk | typeof AnyType, valueCtorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
@@ -64,6 +89,11 @@ export function jsonMapProperty(keyCtorOrThunk: CtorOrThunk | typeof AnyType, va
 	}
 }
 
+/**
+ * Decorator to register a property for serialization/deserialization as a set.
+ * @param ctorOrThunk The constructor of the set item type, or an arrow function that returns the constructor of the set item type. Must always be set; if item type is string/number/boolean, provide String/Number/Boolean.
+ * @param options Options for the property.
+ */
 export function jsonSetProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
@@ -74,6 +104,10 @@ export function jsonSetProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, optio
 	}
 }
 
+/**
+ * Decorator to register a property for serialization/deserialization as any type (same as `@jsonProperty(AnyType)`).
+ * @param options Options for the property.
+ */
 export function jsonAnyProperty(options: JsonPropertyOptions = {}): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
@@ -97,11 +131,3 @@ function setPropertyInternal(ctor: object, propertyKey: PropertyKey, propertyDat
 	if (!data.properties) data.properties = new Map()
 	data.properties.set(propertyKey, propertyData)
 }
-
-// TODO: remove
-export const toJson: ClassDecorator = () => {}
-export const jsonObject = jsonClass
-export const jsonMember = jsonProperty
-export const jsonArrayMember = jsonArrayProperty
-export const jsonMapMember = jsonMapProperty
-export const AnyT = undefined

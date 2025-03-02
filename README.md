@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/github/license/sumbricht/json-class-serializer?&style=for-the-badge&color=green)
 ](https://github.com/sumbricht/json-class-serializer/blob/master/LICENSE)
 
-Serializing and deserializing of TypeScript classes and objects to/from JSON strings and plain objects.Work by annotating classes and their properties with [TypeScript decorators](https://github.com/Microsoft/TypeScript-Handbook/blob/master/pages/Decorators.md).
+Serializing and deserializing of TypeScript classes and objects to/from JSON strings and plain objects. This works by annotating classes and their properties with [TypeScript decorators](https://github.com/Microsoft/TypeScript-Handbook/blob/master/pages/Decorators.md).
 
 JsonClassSerializer can correctly handle the following:
  - Classes with annotated properties of the following values:
@@ -13,7 +13,7 @@ JsonClassSerializer can correctly handle the following:
    - Binary data as ArrayBuffer, Uint8Array or DataView
    - Arrays and Sets of any of the above
    - Maps with both keys and values of any of the above
- - Plain JavaScript objects, arrays and primitive values (NOTE: deserialzing Date objects needs a bit of configuration)
+ - Plain JavaScript objects, arrays and primitive values (*Note:* deserialzing Date objects needs a bit of configuration)
 
 ## Installation
 
@@ -32,13 +32,19 @@ deno add jsr:@sumbricht/json-class-serializer
 
 ## How to use
 
-JsonClassSerializer uses decorators, and requires your classes to be annotated with `@jsonClass()`, and properties with `@jsonProperty` (or the specific `@jsonArrayProperty`, `@jsonSetProperty`, and `@jsonMapProperty` decorators for collections, see below). Properties which are not annotated will not be serialized or deserialized.
+JsonClassSerializer uses decorators, and requires your class properties to be annotated with `@jsonProperty` (or the specific `@jsonArrayProperty`, `@jsonSetProperty`, and `@jsonMapProperty` decorators for collections, see below). Properties which are not annotated will not be serialized or deserialized.
+
+Annotation of classes with `@jsonClass()` is optional but recommended (see below).
 
 ### 1. Annotate the relevant classes with `@jsonClass()`
 
+Annotating a class with `@jsonClass` serves two purposes:
+- Registering the class globally with `@jsonClass('Person')` allows it to be instantiated using `jsc.deserializeFromJson('{"#type":"Person",...}')` without passing the root class constructor `Person`. If you didn't register the class globally (or as an additional class when creating the `JsonClassSerializer`), you have to pass the root class explicitly: `jsc.deserializeFromJson('{"#type":"Person",...}', Person)`, which would even work if no type information was present in the JSON string (`jsc.deserializeFromJson('{...}', Person)`)
+- Configuring a class serializer / deserializer if desired. This would allow any kind of serialization / deserialization. A class could even be serialzed to a single string (see [example class](#example-class) below).
+
 If you specify an optional name (e.g. `@jsonClass('Person')`), this will be used to identify the class when deserializing. Otherwise the class name itself is used.
 
-*Note:* When code is minimized, a process called "mangling" is sometimes used to shorten variable and class names, which can make it necessary to explicitly specify a name.
+*Note:* When code is minimized, a process called "mangling" is sometimes used to shorten variable and class names, which can make it necessary to explicitly specify a name in the `@jsonClass` decorator.
 
 ### 2. Annotate all desired properties with a property decorator
 
@@ -49,7 +55,7 @@ For single value properties, the decorator `@jsonProperty` is used, for collecti
 Depending of the type of value that the property should store, use the following:
 - **Class instance** such as `Address`: use the decorator `@jsonProperty(Address)` with explicit mention of the class constructor.
   
-  You can also **lazily specify** the class constructor to avoid circular dependency issues by using an arrow function that returns the class construtor: `@jsonProperty(() => Address)`.
+  You can also **lazily specify** the class constructor to avoid circular dependency issues by using an arrow function that returns the class constructor: `@jsonProperty(() => Address)`.
 - **Primitive types** `String`, `Number` and `Boolean`: the type can be supplied, but it is not required; simply use `@jsonProperty()` instead of `@jsonProperty(String)`.
 - **Primitive types** `Date` and `BigInt`: specifying the type is required. Use e.g. `@jsonProperty(Date)`
 - **Binary types** `ArrayBuffer`, `Uint8Array` and `DataView`: specifying the type is required. Use e.g. `@jsonProperty(ArrayBuffer)`
@@ -58,7 +64,7 @@ For **collections**, the type of contained values (and for `Map` also the keys) 
 - `Array`: e.g. `@jsonArrayProperty(Person)`, `@jsonArrayProperty(String)` or `@jsonArrayProperty(AnyType)`
 - `Set`: e.g. `@jsonSetProperty(Role)`, `@jsonSetProperty(String)` or `@jsonSetProperty(AnyType)`
 - `Map`: Provide both a type for key and value, e.g. `@jsonMapProperty(String, Person)`, `@jsonMapProperty(String, Number)` or `@jsonMapProperty(AnyType)`
-- **Nested types** can be created using `@jsonProperty(AnyType)`. They may include a deeply nested mix of `String`, `Number`, `Boolean` (**not** `Date`/`BigInt`), arrays,plain JavaScript objects and class instances. Please note that only the mentioned types may be used **outside** of a class instance.
+- **Nested types** can be created using `@jsonProperty(AnyType)`. They may include a deeply nested mix of `String`, `Number`, `Boolean` (**not** `Date`/`BigInt`), arrays, plain JavaScript objects and class instances. Please note that only the mentioned types may be used **outside** of a class instance.
 
     Legal example (note that `Date` is only used within a class):
     ```typescript
@@ -93,7 +99,7 @@ For **collections**, the type of contained values (and for `Map` also the keys) 
     ```
 
 
-*Note:* unline other libraries such as [TypedJSON](https://github.com/JohnWeisz/TypedJSON), JsonClassSerializer does not utilize and type 
+*Note:* unlike other libraries such as [TypedJSON](https://github.com/JohnWeisz/TypedJSON), JsonClassSerializer deliberately does not utilize the type declaration of class properties (the `: SomeType` part) in any way, as this can lead to large difficulties in avoiding cricular dependencies.
 
 **Important:** TypeScript needs to run with the `experimentalDecorators` option enabled.
 
@@ -159,20 +165,6 @@ The following example demonstrates an annotated class for serialization of all p
 import { jsonClass, jsonProperty, jsonArrayProperty, jsonSetProperty, jsonMapProperty, AnyType } from '@sumbricht/json-class-serializer';
 
 @jsonClass()
-class Account {
-    @jsonProperty()
-    currency: string
-    @jsonProperty()
-    amount: number
-}
-
-@jsonClass()
-class Address { /* ... */ }
-
-@jsonClass()
-class SocialSecurityDetails { /* ... */ }
-
-@jsonClass()
 class Person {
     // primitive types
 
@@ -194,7 +186,7 @@ class Person {
 
     // other @jsonClass annotated class properties
 
-    @jsonProperty(SocialSecurityDetails) // must include type constructor, could also be () => SocialSecurityDetails
+    @jsonProperty(SocialSecurityDetails) // must include type constructor or lazy type () => SocialSecurityDetails
     socialSecurityDetails: SocialSecurityDetails
   
   
@@ -205,7 +197,7 @@ class Person {
     @jsonSetProperty(String) // must include type constructor
     nicknames: Set<string> = new Set()
 
-    @jsonMapProperty(String, Person) // must include key and type constructors, could also be () => Person
+    @jsonMapProperty(String, Person) // must include key and type constructors or lazy type () => Person
     children: Map<string, Person> = new Map()
 
 
@@ -241,6 +233,26 @@ class Person {
     })
     accounts: Account[] = []
 }
+
+@jsonClass(undefined, {
+  serializer: (value: Account) => `${value.currency} ${value.balance}`,
+  deserializer: (value: string) => {
+    const [currency, balanceStr] = value.split(' ')
+    return { currency, balance: Number(balanceStr) }
+  }
+})
+class Account {
+    @jsonProperty()
+    currency: string
+    @jsonProperty()
+    amount: number
+}
+
+@jsonClass()
+class Address { /* ... */ }
+
+@jsonClass()
+class SocialSecurityDetails { /* ... */ }
 ```
 
 ## Attribution

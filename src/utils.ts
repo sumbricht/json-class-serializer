@@ -1,11 +1,16 @@
 import { classDataByCtor } from "./metadata.ts";
 
+/**
+ * Gets the name of a class as registered with the `@jsonClass` decorator.
+ * @param ctorOrInstance The constructor or instance of the class.
+ */
 export function getJsonClassName(ctorOrInstance: any): string {
     const ctor = typeof ctorOrInstance === 'function' ? ctorOrInstance : ctorOrInstance.constructor
     return classDataByCtor.get(ctor)?.name || ctor.name
 }
 
 // conversion of buffers to base64
+// TODO: replace with native implementation when TC39 proposal https://github.com/tc39/proposal-arraybuffer-base64 is widely available
 export function dataViewToBase64(view: DataView): string {
     return arrayBufferToBase64(view.buffer)
 }

@@ -18,13 +18,22 @@ export type Deserialized<Input, T extends Ctor> = Input extends InstanceType<T>
 export type PropertyType = 'class' | 'array' | 'map' | 'set' | 'any'
 export type PropertyKey = string | number | symbol
 
+/**
+ * Pseudo-type for usage in {@link jsonProperty}, {@link jsonArrayProperty}, {@link jsonMapProperty}, {@link jsonSetProperty} to indicate that the property value / collection value / key can be of any type.
+ */
 export const AnyType = undefined
 
+/**
+ * Options for configuring how JsonClassSerializer treats the property annotated with `@jsonProperty`.
+ */
 export interface JsonPropertyOptions {
 	serializer?: (value: any) => any
 	deserializer?: (value: any) => any
 }
 
+/**
+ * Options for configuring how JsonClassSerializer treats the class annotated with `@jsonClass`.
+ */
 export interface JsonClassOptions {
 	serializer?: (value: any) => any
 	deserializer?: (value: any) => any
@@ -81,6 +90,16 @@ export interface JsonClassSerializerOptions {
 	 */
 	deserializationClassResolver: ((obj: any, options: EffectiveJsonClassSerializerOptions) => Ctor | string) | undefined;
 	
+	/**
+	 * Whether to use the global class registry (all classes that were annotate with @jsonClass) to resolve class names. Default: true
+	 */
+	useGlobalClassRegistry: boolean;
+
+	/** 
+	 * Additional classes to consider when looking up a type by name (Record with class names as keys and constructor functions as values). This is evaluated before the global class registry. Default: {}
+	 */
+	additionalClassesToConsider: Record<string, Ctor>;
+
 	/**
 	 * Strategy for serializing maps.
 	 * - `'arrayOfEntries'` (default): Serialize maps as an array of entries ([["key1","value1"],["key2","value2"]]).
