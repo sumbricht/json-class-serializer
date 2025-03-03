@@ -98,7 +98,12 @@ export interface JsonClassSerializerOptions {
 	/** 
 	 * Additional classes to consider when looking up a type by name (Record with class names as keys and constructor functions as values). This is evaluated before the global class registry. Default: {}
 	 */
-	additionalClassesToConsider: Record<string, Ctor>;
+	additionalClassesToConsider: MaybeThunk<Record<string, Ctor>>;
+	
+	/**
+	 * Whether to fail if the root class is not found during deserialization. Default: true
+	 */
+	failIfRootClassNotFound: boolean;
 
 	/**
 	 * Strategy for serializing maps.

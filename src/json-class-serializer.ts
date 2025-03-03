@@ -24,6 +24,7 @@ export class JsonClassSerializer {
 		deserializationClassResolver: (obj, options) => obj[options.serializationPropertyName],
 		useGlobalClassRegistry: true,
 		additionalClassesToConsider: {},
+		failIfRootClassNotFound: true,
 		mapSerializationStrategy: 'arrayOfEntries',
 		prettyPrint: false,
 	}
@@ -47,21 +48,23 @@ export class JsonClassSerializer {
 	 * Deserializes a JSON string into a class instance.
 	 * @param json The JSON string to deserialize.
 	 * @param ctor The constructor of the class to deserialize into. If not provided, the class will be determined from the contents of the JSON string, according to the rules specified in {@link JsonClassSerializer.options | options}.
+	 * @param failIfRootClassNotFound Whether to fail if the root class is not found during deserialization. Default: What is set in the options of JsonClassSerializer (default: true).
 	 * @returns The deserialized class instance.
 	 */
-	deserializeFromJson<T extends Ctor>(json: string, ctor?: T): InstanceType<T> {
+	deserializeFromJson<T extends Ctor>(json: string, ctor?: T, failIfRootClassNotFound?: boolean): InstanceType<T> {
 		const obj = JSON.parse(json)
-		return this.deserializeFromObjectInternal(obj, this.getClassDataByCtor(ctor))
+		return this.deserializeFromObjectInternal(obj, this.getClassDataByCtor(ctor), failIfRootClassNotFound ?? this.options.failIfRootClassNotFound)
 	}
 	
 	/**
 	 * Deserializes a plain object into a class instance.
 	 * @param value The JSON object to deserialize.
 	 * @param ctor The constructor of the class to deserialize into. If not provided, the class will be determined from the contents of the plain object, according to the rules specified in {@link JsonClassSerializer.options | options}.
+	 * @param failIfRootClassNotFound Whether to fail if the root class is not found during deserialization. Default: What is set in the options of JsonClassSerializer (default: true).
 	 * @returns The deserialized class instance.
 	 */
-	deserializeFromObject<Input extends any, T extends Ctor>(value: Input, ctor?: T): Deserialized<Input, T> {
-		return this.deserializeFromObjectInternal(value, this.getClassDataByCtor(ctor))
+	deserializeFromObject<Input extends any, T extends Ctor>(value: Input, ctor?: T, failIfRootClassNotFound?: boolean): Deserialized<Input, T> {
+		return this.deserializeFromObjectInternal(value, this.getClassDataByCtor(ctor), failIfRootClassNotFound ?? this.options.failIfRootClassNotFound)
 	}
 
 	/**
@@ -165,7 +168,7 @@ export class JsonClassSerializer {
 	
 	// private deserialization code
 
-	private deserializeFromObjectInternal(value: any, valueClassData: JsonClassData | undefined): any {
+	private deserializeFromObjectInternal(value: any, valueClassData: JsonClassData | undefined, failIfRootClassNotFound: boolean): any {
 		if(valueClassData?.options?.deserializer) {
 			value = valueClassData.options.deserializer(value)
 		}
@@ -174,9 +177,9 @@ export class JsonClassSerializer {
 		const type = typeof value
 		if(!valueClassData && (type == 'string' || type === 'number' || type === 'boolean')) return value
 		
-		if(Array.isArray(value)) return this.deserializeArray(value, valueClassData)
+		if(Array.isArray(value)) return this.deserializeArray(value, valueClassData, failIfRootClassNotFound)
 
-		if(valueClassData || type === 'object') return this.deserializeObject(value, valueClassData)
+		if(valueClassData || type === 'object') return this.deserializeObject(value, valueClassData, failIfRootClassNotFound)
 		return value
 	}
 	
@@ -184,7 +187,8 @@ export class JsonClassSerializer {
 		if(!name) return undefined // can happen for anonymous classes not registered with @jsonClass
 
 		if(name in this.options.additionalClassesToConsider) {
-			const ctor = this.options.additionalClassesToConsider[name]
+			const additionalClassesToConsider = resolveThunk(this.options.additionalClassesToConsider)
+			const ctor = additionalClassesToConsider[name]
 			return this.getClassDataByCtor(ctor)
 		}
 		if(this.options.useGlobalClassRegistry) {
@@ -224,7 +228,7 @@ export class JsonClassSerializer {
 		return properties
 	}
 
-	private deserializeObject(value: any, valueClassData: JsonClassData | undefined): any {
+	private deserializeObject(value: any, valueClassData: JsonClassData | undefined, failIfRootClassNotFound: boolean): any {
 		if(!valueClassData) {
 			const resolvedType = this.options.deserializationClassResolver?.(value, this.options)
 			if(typeof resolvedType == 'string') {
@@ -261,12 +265,12 @@ export class JsonClassSerializer {
 							switch(propData.type) {
 								case 'class': {
 									const valueClassData = this.getClassDataByCtor(propData.valueCtorOrThunk)
-									newValue = this.deserializeFromObjectInternal(propValue, valueClassData)
+									newValue = this.deserializeFromObjectInternal(propValue, valueClassData, false)
 									break
 								}
 								case 'array': {
 									const valueClassData = this.getClassDataByCtor(propData.valueCtorOrThunk)
-									newValue = this.deserializeArray(propValue, valueClassData)
+									newValue = this.deserializeArray(propValue, valueClassData, false)
 									break
 								}
 								case 'set': {
@@ -292,20 +296,23 @@ export class JsonClassSerializer {
 			}
 			return obj
 		} else {
+			if(failIfRootClassNotFound) {
+				throw new Error(`Could not find class data for object: ${JSON.stringify(value)}`)
+			}
 			const obj: any = {}
 			for(const key in value) {
-				obj[key] = this.deserializeFromObjectInternal(value[key], undefined)
+				obj[key] = this.deserializeFromObjectInternal(value[key], undefined, false)
 			}
 			return obj
 		}
 	}
 
-	private deserializeArray(value: any[], valueClassData: JsonClassData | undefined): any {
-		return value.map(item => this.deserializeFromObjectInternal(item, valueClassData))
+	private deserializeArray(value: any[], valueClassData: JsonClassData | undefined, failIfRootClassNotFound: boolean): any {
+		return value.map(item => this.deserializeFromObjectInternal(item, valueClassData, failIfRootClassNotFound))
 	}
 	
 	private deserializeSet(value: any[], valueClassData: JsonClassData | undefined): any {
-		return new Set(this.deserializeArray(value, valueClassData))
+		return new Set(this.deserializeArray(value, valueClassData, false))
 	}
 	
 	private deserializeMap(value: ([any, any] | { key: any, value: any })[], keyClassData: JsonClassData | undefined, valueClassData: JsonClassData | undefined): any {
@@ -315,7 +322,7 @@ export class JsonClassSerializer {
 					entry = [entry.key, entry.value]
 				}
 				const [key, value] = entry
-				return [this.deserializeFromObjectInternal(key, keyClassData), this.deserializeFromObjectInternal(value, valueClassData)]
+				return [this.deserializeFromObjectInternal(key, keyClassData, false), this.deserializeFromObjectInternal(value, valueClassData, false)]
 			})
 		return new Map(entries)
 	}

@@ -39,7 +39,7 @@ Annotation of classes with `@jsonClass()` is optional but recommended (see below
 ### 1. Annotate the relevant classes with `@jsonClass()`
 
 Annotating a class with `@jsonClass` serves two purposes:
-- Registering the class globally with `@jsonClass('Person')` allows it to be instantiated using `jsc.deserializeFromJson('{"#type":"Person",...}')` without passing the root class constructor `Person`. If you didn't register the class globally (or as an additional class when creating the `JsonClassSerializer`), you have to pass the root class explicitly: `jsc.deserializeFromJson('{"#type":"Person",...}', Person)`, which would even work if no type information was present in the JSON string (`jsc.deserializeFromJson('{...}', Person)`)
+- Registering the class globally with `@jsonClass('Person')` allows it to be instantiated using `jcs.deserializeFromJson('{"#type":"Person",...}')` without passing the root class constructor `Person`. If you didn't register the class globally (or as an additional class when creating the `JsonClassSerializer`), you have to pass the root class explicitly: `jcs.deserializeFromJson('{"#type":"Person",...}', Person)`, which would even work if no type information was present in the JSON string (`jcs.deserializeFromJson('{...}', Person)`)
 - Configuring a class serializer / deserializer if desired. This would allow any kind of serialization / deserialization. A class could even be serialzed to a single string (see [example class](#example-class) below).
 
 If you specify an optional name (e.g. `@jsonClass('Person')`), this will be used to identify the class when deserializing. Otherwise the class name itself is used.
@@ -116,36 +116,41 @@ Add the following to your `tsconfig.json` (for NodeJS) or `deno.json` (for Deno)
 Simple example:
 ```typescript
 const person = new Person(/* ... */)
-const jsc = JsonClassSerializer.defaultInstance
+const jcs = JsonClassSerializer.defaultInstance
 
 // serialize to either JSON or a plain object
-const json = jsc.serializeToJson(person) // '{"#type":"Person","name":"John",...}
-const plainObj = jsc.serializeToObject(person)
+const json = jcs.serializeToJson(person) // '{"#type":"Person","name":"John",...}
+const plainObj = jcs.serializeToObject(person)
 
 // deserialize without providing a root class for deserialization
-const personFromJson = jsc.deserializeFromJson(json) as Person
-const personFromObj = jsc.deserializeFromObject(plainObj) as Person
+const personFromJson = jcs.deserializeFromJson(json) as Person
+const personFromObj = jcs.deserializeFromObject(plainObj) as Person
 
 // deserialize providing a root class. This can also deserialize
-const personFromJson = jsc.deserializeFromJson(json, Person) // -> Person
-const personFromObj = jsc.deserializeFromObject(plainObj, Person) // -> Person
+const personFromJson = jcs.deserializeFromJson(json, Person) // -> Person
+const personFromObj = jcs.deserializeFromObject(plainObj, Person) // -> Person
 ```
 
 You can also customize the workings of the JsonClassSerializer default instance or create a separate instance. See auto-completion in your IDE for details of the individual options:
 ```typescript
-const jsc = new JsonClassSerializer({
-	serializationPropertyName: '__type', // default: '#type'
+const jcs = new JsonClassSerializer({
+  serializationPropertyName: '__type', // default: '#type'
 	serializationClassResolver: (obj, options) => {
-        // You can return the type name and let JsonClassSerializer find the right class, or return constructur class directly
+    // You can return the type name and let JsonClassSerializer find the right class, or return constructur class directly
         
-        return Person // serialize every object with unknown type as Person
-    },
-    deserializationClassResolver: (obj, options) => {
-        // You can return the type name and let JsonClassSerializer find the right class, or return constructur class directly
+    return Person // serialize every object with unknown type as Person
+  },
+  deserializationClassResolver: (obj, options) => {
+    // You can return the type name and let JsonClassSerializer find the right class, or return constructur class directly
         
-        const typeName = obj?.[options.serializationPropertyName] // you could return typeName directly
-        return knownTypesMap.get(typeName)
-    },
+    const typeName = obj?.[options.serializationPropertyName] // you could return typeName directly
+    return knownTypesMap.get(typeName)
+  },
+  useGlobalClassRegistry: true, // default: true
+  additionalClassesToConsider: { // default: {}
+    'alternative-address': AlternativeAddress // would apply for '{"#type":"alternative-address",...}'
+  },
+  failIfRootClassNotFound: false, // default: true
 	mapSerializationStrategy: 'arrayOfKeyValueObjects' // default: 'arrayOfEntries'
 	prettyPrint: true, // true: indent by tabs, number: indent by spaces, string: indent by given string, false: no pretty-print
 })
