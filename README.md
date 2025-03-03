@@ -150,7 +150,9 @@ const jcs = new JsonClassSerializer({
   additionalClassesToConsider: { // default: {}
     'alternative-address': AlternativeAddress // would apply for '{"#type":"alternative-address",...}'
   },
-  failIfRootClassNotFound: false, // default: true
+  failIfTypeResolutionFails: false, // default: true
+  failIfRootClassNotFound: false, // default: false
+  failIfPlainObjectsFound: false, // default: false
 	mapSerializationStrategy: 'arrayOfKeyValueObjects' // default: 'arrayOfEntries'
 	prettyPrint: true, // true: indent by tabs, number: indent by spaces, string: indent by given string, false: no pretty-print
 })

@@ -14,8 +14,12 @@ export const classDataByCtor = new WeakMap<any, JsonClassData>([
 	[Uint8Array, { options: { serializer: uint8ArrayToBase64, deserializer: base64ToUint8Array } }],
 	[DataView, { options: { serializer: dataViewToBase64, deserializer: base64ToDataView } }],
 ])
-export const classDataByName = new Map<string, JsonClassData>()
+/**
+ * Symbol that allows access to the global class registry (on `globalThis`) and class-specific metadata (on the class function).
+ */
 export const ClassDataSymbol = Symbol.for('JsonClassData')
+export const classDataByName = (globalThis as any)[ClassDataSymbol] ?? new Map<string, JsonClassData>() // ensure only one instance of the map exists even if JsonClassSerializer is imported multiple times in separate chunks
+;(globalThis as any)[ClassDataSymbol] = classDataByName
 
 /**
  * Decorator to globally register a class for serialization/deserialization.

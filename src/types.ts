@@ -21,7 +21,7 @@ export type PropertyKey = string | number | symbol
 /**
  * Pseudo-type for usage in {@link jsonProperty}, {@link jsonArrayProperty}, {@link jsonMapProperty}, {@link jsonSetProperty} to indicate that the property value / collection value / key can be of any type.
  */
-export const AnyType = undefined
+export const AnyType = Symbol('AnyType') as unknown as Ctor
 
 /**
  * Options for configuring how JsonClassSerializer treats the property annotated with `@jsonProperty`.
@@ -101,9 +101,19 @@ export interface JsonClassSerializerOptions {
 	additionalClassesToConsider: MaybeThunk<Record<string, Ctor>>;
 	
 	/**
-	 * Whether to fail if the root class is not found during deserialization. Default: true
+	 * Whether to fail if the type resolution using {@link JsonClassSerializerOptions.deserializationClassResolver | options.deserializationClassResolver} fails during deserialization. Default: true
+	 */
+	failIfTypeResolutionFails: boolean;
+
+	/**
+	 * Whether to fail if the root class is not found during deserialization. Default: false 
 	 */
 	failIfRootClassNotFound: boolean;
+
+	/**
+	 * Whether to fail if any plain objects are found during deserialization. Default: false
+	 */
+	failIfPlainObjectsFound: boolean;
 
 	/**
 	 * Strategy for serializing maps.
@@ -140,4 +150,12 @@ export function isThunk<T>(value: MaybeThunk<T>): value is Thunk<T> {
 
 export function resolveThunk<T>(value: MaybeThunk<T>): T {
 	return isThunk(value) ? value() : value
+}
+
+export function propertyHasKeyCtor(property: JsonProperty): property is JsonProperty & { type: 'map' } {
+	return property.type == 'map'
+}
+
+export function propertyHasValueCtor(property: JsonProperty): property is JsonProperty & { type: 'class' | 'array' | 'set' | 'map' } {
+	return property.type == 'class' || property.type == 'array' || property.type == 'set' || property.type == 'map'
 }

@@ -340,7 +340,7 @@ Deno.test(function utilGetJsonClassName() {
 Deno.test(function anyTypeProperties() {
   @jsonClass()
   class Foo {
-    @jsonProperty()
+    @jsonProperty(AnyType)
     obj: any
     @jsonArrayProperty(AnyType)
     array!: any[]
@@ -389,8 +389,17 @@ Deno.test(function deserializeUsingAlternativeTypeRegistry() {
     useGlobalClassRegistry: false,
     failIfRootClassNotFound: false
   })
-  const deserializedWithoutAnyClasses = jcsWithoutAnyClasses.deserializeFromJson(json)
-  assertSimilarInstances(deserializedWithoutAnyClasses, JSON.parse(json))
+  assertThrows(() => {
+    jcsWithoutAnyClasses.deserializeFromJson(json)
+  })
+  
+  const jcsWithoutAnyClassesButAllowingFailedResolutions = new JsonClassSerializer({
+    useGlobalClassRegistry: false,
+    failIfRootClassNotFound: false,
+    failIfTypeResolutionFails: false,
+  })
+  const deserializedWithoutAnyClassesButAllowingFailedResolutions = jcsWithoutAnyClassesButAllowingFailedResolutions.deserializeFromJson(json)
+  assertSimilarInstances(deserializedWithoutAnyClassesButAllowingFailedResolutions, JSON.parse(json))
 
   const jcsWithAdditionalClasses = new JsonClassSerializer({
     additionalClassesToConsider,
@@ -410,14 +419,14 @@ Deno.test(function deserializeUnannotatedNestedClasses() {
   }
   const foo = new Foo()
   const jcs = new JsonClassSerializer
-  const jcsAllowPlainRoot = new JsonClassSerializer({ failIfRootClassNotFound: false })
+  const jcsProhibitPlainRoot = new JsonClassSerializer({ failIfRootClassNotFound: true })
   const json = jcs.serializeToJson(foo)
   assertEquals(json, '{"bar":{"baz":""}}')
 
   assertThrows(() => {
-    jcs.deserializeFromJson(json, undefined)
+    jcsProhibitPlainRoot.deserializeFromJson(json, undefined)
   })
-  const deserializedWithoutHint = jcsAllowPlainRoot.deserializeFromJson(json, undefined)
+  const deserializedWithoutHint = jcs.deserializeFromJson(json, undefined)
   assertSimilarInstances(deserializedWithoutHint, { bar: { baz: ''}})
 
   const deserializedWithHint = jcs.deserializeFromJson(json, Foo)
@@ -443,4 +452,49 @@ Deno.test(function serializeBinaryData() {
   assertSimilarInstances(deserializedArrayBuffer, arrayBuffer)
   assertSimilarInstances(deserializedUint8, uint8Array)
   assertSimilarInstances(deserializedDataView, dataView)
+})
+
+Deno.test(function deserializeSubclasses() {
+  @jsonClass()
+  class SpecialPerson extends Person {
+    @jsonProperty()
+    specialProperty = ''
+  }
+
+  class Container {
+    @jsonProperty(Person)
+    person = new SpecialPerson
+    @jsonArrayProperty(Person)
+    personArray = [new SpecialPerson]
+    @jsonMapProperty(String, Person)
+    nameToPersonMap = new Map<string, Person>([['me', new SpecialPerson]])
+    @jsonMapProperty(Person, Number)
+    personToNumberMap = new Map<Person, number>([[new SpecialPerson, 1]])
+    @jsonSetProperty(Person)
+    personSet = new Set([new SpecialPerson])
+  }
+
+  const jcs = new JsonClassSerializer
+
+  const specialPerson = new SpecialPerson()
+  const personJson = jcs.serializeToJson(specialPerson)
+  const deserialized = jcs.deserializeFromJson(personJson, SpecialPerson)
+  assertSimilarInstances(deserialized, specialPerson)
+
+  const container = new Container
+  const containerJson = jcs.serializeToJson(container)
+  const deserializedContainer = jcs.deserializeFromJson(containerJson, Container)
+  assertSimilarInstances(deserializedContainer, container)
+})
+
+Deno.test(function serializeObjectPropertyWithoutConstructor() {
+  class Foo {
+    @jsonProperty()
+    obj: object = {}
+  }
+
+  const jcs = new JsonClassSerializer
+  assertThrows(() => {
+    jcs.serializeToJson(new Foo)
+  })
 })

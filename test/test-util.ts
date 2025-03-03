@@ -10,9 +10,9 @@ export function assertSimilarInstances(a: any, b: any): void {
 	  a.forEach((item, idx) => assertSimilarInstances(item, b[idx]))
 	} else if(a instanceof Map) {
 	  assertEquals(a.size, b.size)
-	  a.forEach((value, key) => {
-		assertSimilarInstances(value, b.get(key))
-	  })
+	  const aEntries = Array.from(a.entries())
+	  const bEntries = Array.from(b.entries())
+	  assertSimilarInstances(aEntries, bEntries)
 	} else if(a instanceof Set) {
 	  assertEquals(a.size, b.size)
 	  assertSimilarInstances(Array.from(a), Array.from(b))
