@@ -287,12 +287,15 @@ Deno.test(function mapSerializationStrategyKeyValueObjects() {
 });
 
 Deno.test(function classInstanceWithInheritance() {
-  class Animal {
+  class Animal { // no @jsonClass
     @jsonProperty()
     name: string = ''
   }
+
+  class FourLegged extends Animal {} // no @jsonClass AND NOT properties
+
   @jsonClass()
-  class Cat extends Animal {
+  class Cat extends FourLegged {
     @jsonProperty()
     character: 'lazy' | 'evil' = 'evil'
     @jsonProperty()

@@ -222,11 +222,12 @@ export class JsonClassSerializer {
 	private getAllProperties(jsonData: JsonClassData | undefined): Map<PropertyKey, JsonProperty> {
 		const properties = new Map<PropertyKey, JsonProperty>()
 
-		function addPropertiesForClass(jsonData: JsonClassData | undefined) {
-			const superClassJsonData = jsonData?.ctor ? classDataByCtor.get(Object.getPrototypeOf(jsonData.ctor)) : undefined
-			if(superClassJsonData) {
-				// first process super classes to ensure correct order or properties
-				addPropertiesForClass(superClassJsonData)
+		function addPropertiesForClass(jsonData: JsonClassData | undefined, ctor: Ctor | undefined) {
+			const superClass = ctor ? Object.getPrototypeOf(ctor) : undefined
+			if(superClass) {
+				// first process super classes to ensure correct order or properties. Also dive down prototype chain if no jsonData is available as there could be intermediate classes without any annotated properties
+				const superClassJsonData = superClass ? classDataByCtor.get(superClass) : undefined
+				addPropertiesForClass(superClassJsonData, superClass)
 			}
 			for(const property of jsonData?.properties?.entries() ?? []) {
 				if(!properties.has(property[0])) {
@@ -234,7 +235,7 @@ export class JsonClassSerializer {
 				}
 			}
 		}
-		addPropertiesForClass(jsonData)
+		addPropertiesForClass(jsonData, jsonData?.ctor)
 
 		return properties
 	}
