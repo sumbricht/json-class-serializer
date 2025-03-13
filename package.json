@@ -1,7 +1,7 @@
 {
   "name": "@sumbricht/json-class-serializer",
   "description": "Serialize/deserialize JS classes to/from JSON strings and plain objects",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "type": "module",
   "main": "dist/mod.cjs",
   "module": "dist/mod.js",
@@ -18,7 +18,8 @@
   ],
   "scripts": {
     "build": "tsup",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "deno test && deno test --config deno-experimental-decorators.json"
   },
   "tsup": {
     "entryPoints": ["src/mod.ts"],

@@ -68,7 +68,7 @@ class Person {
   @jsonSetProperty(() => String)
   nicknames: Set<string> = new Set()
 
-  @jsonMapProperty(String, Person)
+  @jsonMapProperty(String, () => Person)
   children: Map<string, Person> = new Map()
 
   @jsonArrayProperty(() => Account, {
@@ -253,13 +253,6 @@ Deno.test(function serializeWithPrettyPrint() {
   assertEquals(jsonNumber, `{\n   "foo": {\n      "bar": {\n         "baz": [\n            1,\n            2,\n            3\n         ]\n      }\n   }\n}`)
   assertEquals(jsonString, `{\n   "foo": {\n      "bar": {\n         "baz": [\n            1,\n            2,\n            3\n         ]\n      }\n   }\n}`)
 })
-
-Deno.test(function classInstanceHasJsonClassData() {
-  const person = createTestPerson()
-  const classData = (person as any)[ClassDataSymbol];
-  assert(classData)
-  assertEquals(classData, classDataByCtor.get(Person))
-});
 
 Deno.test(function mapSerializationStrategyKeyValueObjects() {
   @jsonClass()

@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/github/license/sumbricht/json-class-serializer?&style=for-the-badge&color=green)
 ](https://github.com/sumbricht/json-class-serializer/blob/master/LICENSE)
 
-Serializing and deserializing of TypeScript classes and objects to/from JSON strings and plain objects. This works by annotating classes and their properties with [TypeScript decorators](https://github.com/Microsoft/TypeScript-Handbook/blob/master/pages/Decorators.md).
+Serializing and deserializing of TypeScript classes and objects to/from JSON strings and plain objects. This works by annotating classes and their properties with decorators (both [JavaScript decorators according to the TC39 proposal](https://github.com/tc39/proposal-decorators) and [experimental TypeScript decorators](https://github.com/Microsoft/TypeScript-Handbook/blob/master/pages/Decorators.md) are supported without any need for configuration).
 
 JsonClassSerializer can correctly handle the following:
  - Classes with annotated properties of the following values:
@@ -14,6 +14,8 @@ JsonClassSerializer can correctly handle the following:
    - Arrays and Sets of any of the above
    - Maps with both keys and values of any of the above
  - Plain JavaScript objects, arrays and primitive values (*Note:* deserialzing Date objects needs a bit of configuration)
+
+If you find any missing use case, please [create a new issue](https://github.com/sumbricht/json-class-serializer/issues).
 
 ## Installation
 

@@ -1,6 +1,6 @@
 import type { Ctor, CtorOrThunk, Deserialized, EffectiveJsonClassSerializerOptions, EntryOrKeyValue, JsonClassData, JsonClassSerializerOptions, JsonProperty } from "./types.ts";
 import { propertyHasKeyCtor, propertyHasValueCtor, resolveThunk } from "./types.ts";
-import { classDataByCtor, classDataByName, ClassDataSymbol } from "./metadata.ts";
+import { classDataByCtor, classDataByName, ClassDataSymbol, metadataName } from "./metadata.ts";
 
 /**
  * JsonClassSeriallzer serves to serialize and deserialize class instances to and from JSON / plain objects.
@@ -210,7 +210,7 @@ export class JsonClassSerializer {
 	private getClassDataByCtor(ctorOrThunk: CtorOrThunk | undefined): JsonClassData | undefined {
 		if(!ctorOrThunk) return undefined
 		const ctor = resolveThunk(ctorOrThunk)
-		const classData = classDataByCtor.get(ctor)
+		const classData = classDataByCtor.get(ctor) ?? (ctor as any)?.[ClassDataSymbol]?.[metadataName]
 		if(classData && !classData.ctor && !classData.options?.deserializer) {
 			// could be the case for additional classes known to JsonClassSerializer instance, but not globally registered using @jsonClass
 			// don't set ctor if deserializer is set, otherwise it would interfere with deserialization of primitive types
@@ -222,11 +222,11 @@ export class JsonClassSerializer {
 	private getAllProperties(jsonData: JsonClassData | undefined): Map<PropertyKey, JsonProperty> {
 		const properties = new Map<PropertyKey, JsonProperty>()
 
-		function addPropertiesForClass(jsonData: JsonClassData | undefined, ctor: Ctor | undefined) {
+		const addPropertiesForClass = (jsonData: JsonClassData | undefined, ctor: Ctor | undefined) => {
 			const superClass = ctor ? Object.getPrototypeOf(ctor) : undefined
 			if(superClass) {
 				// first process super classes to ensure correct order or properties. Also dive down prototype chain if no jsonData is available as there could be intermediate classes without any annotated properties
-				const superClassJsonData = superClass ? classDataByCtor.get(superClass) : undefined
+				const superClassJsonData = superClass ? this.getClassDataByCtor(superClass) : undefined
 				addPropertiesForClass(superClassJsonData, superClass)
 			}
 			for(const property of jsonData?.properties?.entries() ?? []) {

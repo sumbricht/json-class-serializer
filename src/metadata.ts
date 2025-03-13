@@ -17,7 +17,8 @@ export const classDataByCtor = new WeakMap<any, JsonClassData>([
 /**
  * Symbol that allows access to the global class registry (on `globalThis`) and class-specific metadata (on the class function).
  */
-export const ClassDataSymbol = Symbol.for('JsonClassData')
+export const metadataName = 'JsonClassData'
+export const ClassDataSymbol = Symbol.metadata ?? Symbol.for(metadataName)
 export const classDataByName = (globalThis as any)[ClassDataSymbol] ?? new Map<string, JsonClassData>() // ensure only one instance of the map exists even if JsonClassSerializer is imported multiple times in separate chunks
 ;(globalThis as any)[ClassDataSymbol] = classDataByName
 
@@ -27,8 +28,9 @@ export const classDataByName = (globalThis as any)[ClassDataSymbol] ?? new Map<s
  * @param options Options for the class.
  */
 export function jsonClass(name?: MaybeThunk<string | null>, options: JsonClassOptions = {}): ClassDecorator {
-	return (ctor: any) => {
-		const data = ensureJsonClassData(ctor)
+	return (ctor: any, context?: DecoratorContext) => {
+		const data = ensureJsonClassData(ctor, context)
+
 		data.name = name !== null
 			? resolveThunk(name) || JsonClassSerializer.defaultOptions.classNameResolver(ctor)
 			: undefined
@@ -51,9 +53,9 @@ export function jsonClass(name?: MaybeThunk<string | null>, options: JsonClassOp
  * @param ctorOrThunk The constructor of the property type, or an arrow function that returns the constructor of the property type. Must be provided unless the property type is string/number/boolean.
  * @param options Options for the property.
  */
-export function jsonProperty(ctorOrThunk?: CtorOrThunk, options: JsonPropertyOptions = {}): PropertyDecorator {
-	return function(target: any, propertyKey: string | symbol) {
-		setPropertyInternal(target.constructor, propertyKey, {
+export function jsonProperty(ctorOrThunk?: CtorOrThunk, options: JsonPropertyOptions = {}): any {
+	return (targetOrUndefined: any, propertyKeyOrContext: string | symbol | DecoratorContext) => {
+		setPropertyInternal(targetOrUndefined?.constructor, propertyKeyOrContext, {
 			type: 'class',
 			options,
 			valueCtorOrThunk: ctorOrThunk
@@ -66,9 +68,9 @@ export function jsonProperty(ctorOrThunk?: CtorOrThunk, options: JsonPropertyOpt
  * @param ctorOrThunk The constructor of the array item type, or an arrow function that returns the constructor of the array item type. Must always be set; if item typ is string/number/boolean, provide String/Number/Boolean.
  * @param options Options for the property.
  */
-export function jsonArrayProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
-	return (target, propertyKey) => {
-		setPropertyInternal(target.constructor, propertyKey, {
+export function jsonArrayProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): any {
+	return (targetOrUndefined: any, propertyKeyOrContext: string | symbol | DecoratorContext) => {
+		setPropertyInternal(targetOrUndefined?.constructor, propertyKeyOrContext, {
 			type: 'array',
 			options,
 			valueCtorOrThunk: ctorOrThunk
@@ -82,9 +84,9 @@ export function jsonArrayProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, opt
  * @param valueCtorOrThunk The constructor of the map value type, or an arrow function that returns the constructor of the map value type. Must always be set; if value type is string/number/boolean, provide String/Number/Boolean.
  * @param options Options for the property.
  */
-export function jsonMapProperty(keyCtorOrThunk: CtorOrThunk | typeof AnyType, valueCtorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
-	return (target, propertyKey) => {
-		setPropertyInternal(target.constructor, propertyKey, {
+export function jsonMapProperty(keyCtorOrThunk: CtorOrThunk | typeof AnyType, valueCtorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): any {
+	return (targetOrUndefined: any, propertyKeyOrContext: string | symbol | DecoratorContext) => {
+		setPropertyInternal(targetOrUndefined?.constructor, propertyKeyOrContext, {
 			type: 'map',
 			options,
 			keyCtorOrThunk,
@@ -98,9 +100,9 @@ export function jsonMapProperty(keyCtorOrThunk: CtorOrThunk | typeof AnyType, va
  * @param ctorOrThunk The constructor of the set item type, or an arrow function that returns the constructor of the set item type. Must always be set; if item type is string/number/boolean, provide String/Number/Boolean.
  * @param options Options for the property.
  */
-export function jsonSetProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
-	return (target, propertyKey) => {
-		setPropertyInternal(target.constructor, propertyKey, {
+export function jsonSetProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): any {
+	return (targetOrUndefined: any, propertyKeyOrContext: string | symbol | DecoratorContext) => {
+		setPropertyInternal(targetOrUndefined?.constructor, propertyKeyOrContext, {
 			type: 'set',
 			options,
 			valueCtorOrThunk: ctorOrThunk
@@ -112,26 +114,50 @@ export function jsonSetProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, optio
  * Decorator to register a property for serialization/deserialization as any type (same as `@jsonProperty(AnyType)`).
  * @param options Options for the property.
  */
-export function jsonAnyProperty(options: JsonPropertyOptions = {}): PropertyDecorator {
-	return (target, propertyKey) => {
-		setPropertyInternal(target.constructor, propertyKey, {
+export function jsonAnyProperty(options: JsonPropertyOptions = {}): any {
+	return (targetOrUndefined: any, propertyKeyOrContext: string | symbol | DecoratorContext) => {
+		setPropertyInternal(targetOrUndefined?.constructor, propertyKeyOrContext, {
 			type: 'any',
 			options,
 		})
 	}
 }
 
-function ensureJsonClassData(ctor: any): JsonClassData {
-	let data = classDataByCtor.get(ctor)
-	if (!data) {
-		data = {}
-		classDataByCtor.set(ctor, data)
+function ensureJsonClassData(ctor: any, decoratorContext: DecoratorContext | undefined): JsonClassData {
+	let data: JsonClassData | undefined
+	if(decoratorContext) {
+		data = Object.hasOwn(decoratorContext?.metadata, metadataName) ? decoratorContext.metadata[metadataName] as JsonClassData: undefined
+	 }
+	if(!data && ctor) {
+		data = classDataByCtor.get(ctor)
 	}
-	return data
+	if (!data) {
+		if(decoratorContext) {
+			// new decorator format
+			if(!Object.hasOwn(decoratorContext.metadata, metadataName)) decoratorContext.metadata[metadataName] = {}
+			data = decoratorContext.metadata[metadataName]!
+		} else {
+			// legacy decorator format
+			ctor.prototype[ClassDataSymbol] = ctor.prototype[ClassDataSymbol] ?? {}
+			ctor.prototype[ClassDataSymbol][metadataName] = ctor.prototype[ClassDataSymbol][metadataName] ?? {}
+			data = ctor.prototype[ClassDataSymbol][metadataName]
+		}
+		if(ctor) {
+			classDataByCtor.set(ctor, data!)
+		}
+	}
+	return data!
 }
 
-function setPropertyInternal(ctor: object, propertyKey: PropertyKey, propertyData: JsonProperty) {
-	const data = ensureJsonClassData(ctor)
-	if (!data.properties) data.properties = new Map()
-	data.properties.set(propertyKey, propertyData)
+function setPropertyInternal(ctor: any, propertyKeyOrContext: PropertyKey | DecoratorContext, propertyData: JsonProperty) {
+	if(typeof propertyKeyOrContext === 'object') {
+		// new decorator format
+		const data = ensureJsonClassData(ctor, propertyKeyOrContext)
+		if (!data.properties) data.properties = new Map()
+		data.properties.set(propertyKeyOrContext.name!, propertyData)
+	} else {
+		const data = ensureJsonClassData(ctor, undefined)
+		if (!data.properties) data.properties = new Map()
+		data.properties.set(propertyKeyOrContext, propertyData)
+	}
 }
