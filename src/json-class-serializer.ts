@@ -210,7 +210,10 @@ export class JsonClassSerializer {
 	private getClassDataByCtor(ctorOrThunk: CtorOrThunk | undefined): JsonClassData | undefined {
 		if(!ctorOrThunk) return undefined
 		const ctor = resolveThunk(ctorOrThunk)
-		const classData = classDataByCtor.get(ctor) ?? (ctor as any)?.[ClassDataSymbol]?.[metadataName]
+		let classData = classDataByCtor.get(ctor)
+		if(!classData && Object.hasOwn(ctor, ClassDataSymbol)) {
+			classData = (ctor as any)?.[ClassDataSymbol]?.[metadataName]
+		}
 		if(classData && !classData.ctor && !classData.options?.deserializer) {
 			// could be the case for additional classes known to JsonClassSerializer instance, but not globally registered using @jsonClass
 			// don't set ctor if deserializer is set, otherwise it would interfere with deserialization of primitive types

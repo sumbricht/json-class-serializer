@@ -18,7 +18,7 @@ export const classDataByCtor = new WeakMap<any, JsonClassData>([
  * Symbol that allows access to the global class registry (on `globalThis`) and class-specific metadata (on the class function).
  */
 export const metadataName = 'JsonClassData'
-export const ClassDataSymbol = Symbol.metadata ?? Symbol.for(metadataName)
+export const ClassDataSymbol: symbol = Symbol.metadata ?? Symbol.for(metadataName)
 export const classDataByName = (globalThis as any)[ClassDataSymbol] ?? new Map<string, JsonClassData>() // ensure only one instance of the map exists even if JsonClassSerializer is imported multiple times in separate chunks
 ;(globalThis as any)[ClassDataSymbol] = classDataByName
 

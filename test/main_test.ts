@@ -283,6 +283,9 @@ Deno.test(function classInstanceWithInheritance() {
   class Animal { // no @jsonClass
     @jsonProperty()
     name: string = ''
+    constructor(init?: Animal) {
+      if(init) Object.assign(this, init)
+    }
   }
 
   class FourLegged extends Animal {} // no @jsonClass AND NOT properties
@@ -306,6 +309,11 @@ Deno.test(function classInstanceWithInheritance() {
   assertEquals(json, '{"#type":"Cat","name":"Tom","character":"lazy","fur":"fuzzy"}')
   const deserialized = jcs.deserializeFromJson(json, Cat)
   assertSimilarInstances(deserialized, cat)
+
+  const animal = new Animal({ name: 'Jerry' })
+  const animalJson = jcs.serializeToJson(animal)
+  const animalDeserialized = jcs.deserializeFromJson(animalJson)
+  assertSimilarInstances(animalDeserialized, animal)
 });
 
 Deno.test(function onlyDeserializePropertiesInJson() {
