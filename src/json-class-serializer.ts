@@ -120,7 +120,9 @@ export class JsonClassSerializer {
 		if(Array.isArray(value)) return this.serializeArray(value, path, owningPropertyData)
 		if(value instanceof Set) return this.serializeSet(value, path, owningPropertyData)
 		if(value instanceof Map) return this.serializeMap(value, path, owningPropertyData)
-		if(value instanceof Date) return value.toISOString()
+		if(typeof value.toJSON == 'function' && !value.toJSON[ClassDataSymbol]) { // check for toJSON[ClassDataSymbol] to avoid infinite recursion
+			return this.serializeToObjectInternal(value.toJSON(), path, owningPropertyData, asKeyOrValue)
+		}
 		if(type === 'object') return this.serializeObject(value, path, owningPropertyData, asKeyOrValue)
 		return value
 	}

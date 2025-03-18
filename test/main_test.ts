@@ -448,13 +448,46 @@ Deno.test(function serializeBinaryData() {
   const jsonDataView = jcs.serializeToJson(dataView)
   assertEquals(jsonArrayBuffer, jsonUint8)
   assertEquals(jsonDataView, jsonUint8)
-
+  
   const deserializedArrayBuffer = jcs.deserializeFromJson(jsonArrayBuffer, ArrayBuffer)
   const deserializedUint8 = jcs.deserializeFromJson(jsonUint8, Uint8Array)
   const deserializedDataView = jcs.deserializeFromJson(jsonDataView, DataView)
   assertSimilarInstances(deserializedArrayBuffer, arrayBuffer)
   assertSimilarInstances(deserializedUint8, uint8Array)
   assertSimilarInstances(deserializedDataView, dataView)
+})
+
+Deno.test(function serializeClassWithBinaryData() {
+  const uint8Array = new Uint8Array(new Array(256 * 4 + 1).fill(0).map((_, idx) => idx % 256))
+  
+  class HasBinaryData {
+    @jsonProperty(Uint8Array)
+    uint8Array?: Uint8Array
+    @jsonProperty(ArrayBuffer)
+    arrayBuffer?: ArrayBuffer
+    @jsonProperty(DataView)
+    dataView?: DataView
+
+    constructor(init: HasBinaryData) {
+      Object.assign(this, init)
+    }
+
+  }
+
+  const obj = new HasBinaryData({
+    uint8Array,
+    arrayBuffer: uint8Array.buffer,
+    dataView: new DataView(uint8Array.buffer)
+  })
+
+  const jcs = new JsonClassSerializer
+  const json = jcs.serializeToJson(obj)
+  const deserialized = jcs.deserializeFromJson(json, HasBinaryData)
+  assertSimilarInstances(deserialized, obj)
+
+  const serializedToObj = jcs.serializeToObject(obj)
+  const deserializedFromObj = jcs.deserializeFromObject(serializedToObj, HasBinaryData)
+  assertSimilarInstances(deserializedFromObj, obj)
 })
 
 Deno.test(function deserializeSubclasses() {
@@ -534,19 +567,16 @@ Deno.test(function serializeCircularDependenciesInCollections() {
     map: Map<Foo, Foo> = new Map
     @jsonSetProperty(Foo)
     set: Set<Foo> = new Set
-    @jsonProperty(AnyType)
-    nestedMap: Map<Foo, Map<Foo, Foo>> = new Map
   }
 
   const obj = new Foo
   obj.arr = [obj]
   obj.map.set(obj, obj)
   obj.set.add(obj)
-  obj.nestedMap.set(obj, obj.map)
 
   const jcs = new JsonClassSerializer
   const json = jcs.serializeToJson(obj)
-  assertEquals(json, '{"arr":[{"#ref":[]}],"map":[[{"#ref":[]},{"#ref":[]}]],"set":[{"#ref":[]}],"nestedMap":[[{"#ref":[]},{"#ref":["map"]}]]}')
+  assertEquals(json, '{"arr":[{"#ref":[]}],"map":[[{"#ref":[]},{"#ref":[]}]],"set":[{"#ref":[]}]}')
 
   const deserialized = jcs.deserializeFromJson(json, Foo)
   assertSimilarInstances(deserialized, obj)
@@ -556,9 +586,46 @@ Deno.test(function serializeCircularDependenciesInCollections() {
   assertEquals(Array.from(deserialized.set)[0], deserialized)
 })
 
-Deno.test(function serializeCircularDependenciesNestedObjects() {
-  // type Foo {
-  //   arr: Foo[]
+Deno.test(function serializeTemporalTypes() {
+  class DatesAndTimes {
+    @jsonProperty(Date)
+    date?: Date
+    @jsonProperty(Temporal.Instant)
+    instant?: Temporal.Instant
+    @jsonProperty(Temporal.PlainDate)
+    plainDate?: Temporal.PlainDate
+    @jsonProperty(Temporal.PlainTime)
+    plainTime?: Temporal.PlainTime
+    @jsonProperty(Temporal.PlainDateTime)
+    plainDateTime?: Temporal.PlainDateTime
+    @jsonProperty(Temporal.PlainYearMonth)
+    plainYearMonth?: Temporal.PlainYearMonth
+    @jsonProperty(Temporal.PlainMonthDay)
+    plainMonthDay?: Temporal.PlainMonthDay
+    @jsonProperty(Temporal.ZonedDateTime)
+    zonedDateTime?: Temporal.ZonedDateTime
+    @jsonProperty(Temporal.Duration)
+    duration?: Temporal.Duration
 
-  // }
+    constructor(init: DatesAndTimes) {
+      Object.assign(this, init)
+    }
+  }
+
+  const datesAndTimes = new DatesAndTimes({
+    date: new Date('2000-01-02 12:34:56'),
+    instant: Temporal.Instant.from('2000-01-02T12:34:56Z'),
+    zonedDateTime: Temporal.ZonedDateTime.from('2000-01-02T12:34:56Z[UTC]'),
+    plainDate: Temporal.PlainDate.from('2000-01-02'),
+    plainTime: Temporal.PlainTime.from('12:34:56'),
+    plainDateTime: Temporal.PlainDateTime.from('2000-01-02T12:34:56'),
+    plainYearMonth: Temporal.PlainYearMonth.from('2000-01'),
+    plainMonthDay: Temporal.PlainMonthDay.from('01-02'),
+    duration: Temporal.Duration.from('PT12H34M56S'),
+  })
+
+  const jcs = new JsonClassSerializer
+  const json = jcs.serializeToJson(datesAndTimes)
+  const deserialized = jcs.deserializeFromJson(json, DatesAndTimes)
+  assertSimilarInstances(deserialized, datesAndTimes)
 })

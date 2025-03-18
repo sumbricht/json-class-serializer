@@ -14,7 +14,7 @@
 			"runtimeExecutable": "/home/simon/bin/deno",
 			"runtimeArgs": [
 				"test",
-				"--unstable",
+				"--unstable-temporal",
 				"--inspect-wait",
 				"--allow-all"
 			],

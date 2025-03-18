@@ -7,10 +7,11 @@ Serializing and deserializing of TypeScript classes and objects to/from JSON str
 
 JsonClassSerializer can correctly handle the following:
  - Classes with annotated properties of the following values:
-   - Primitive types (string, number, boolean, Date, bigint)
+   - Primitive types (string, number, boolean, bigint)
    - Other classes
    - Plain JavaScript objects (even ones that have class instances nested deeply within)
    - Binary data as ArrayBuffer, Uint8Array or DataView
+   - Dates and new [Temporal](https://tc39.es/proposal-temporal) types (if available in runtime; if using a polyfill, Temporal types may require explicit registration in the JsonClassSerializer instance)
    - Arrays and Sets of any of the above
    - Maps with both keys and values of any of the above
  - Plain JavaScript objects, arrays and primitive values (*Note:* deserialzing Date objects needs a bit of configuration)

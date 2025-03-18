@@ -14,6 +14,19 @@ export const classDataByCtor = new WeakMap<any, JsonClassData>([
 	[Uint8Array, { options: { serializer: uint8ArrayToBase64, deserializer: base64ToUint8Array } }],
 	[DataView, { options: { serializer: dataViewToBase64, deserializer: base64ToDataView } }],
 ])
+const { Temporal } = globalThis as any
+if(Temporal) {
+	// Temporal types are only available in environments that support Temporal
+	classDataByCtor.set(Temporal.Instant, { options: { deserializer: (value: string) => Temporal.Instant.from(value) } })
+	classDataByCtor.set(Temporal.PlainDate, { options: { deserializer: (value: string) => Temporal.PlainDate.from(value) } })
+	classDataByCtor.set(Temporal.PlainTime, { options: { deserializer: (value: string) => Temporal.PlainTime.from(value) } })
+	classDataByCtor.set(Temporal.PlainDateTime, { options: { deserializer: (value: string) => Temporal.PlainDateTime.from(value) } })
+	classDataByCtor.set(Temporal.PlainYearMonth, { options: { deserializer: (value: string) => Temporal.PlainYearMonth.from(value) } })
+	classDataByCtor.set(Temporal.PlainMonthDay, { options: { deserializer: (value: string) => Temporal.PlainMonthDay.from(value) } })
+	classDataByCtor.set(Temporal.ZonedDateTime, { options: { deserializer: (value: string) => Temporal.ZonedDateTime.from(value) } })
+	classDataByCtor.set(Temporal.Duration, { options: { deserializer: (value: string) => Temporal.Duration.from(value) } })
+}
+
 /**
  * Symbol that allows access to the global class registry (on `globalThis`) and class-specific metadata (on the class function).
  */
@@ -43,6 +56,7 @@ export function jsonClass(name?: MaybeThunk<string | null>, options: JsonClassOp
 			const jsc = JsonClassSerializer.defaultInstance
 			return jsc.serializeToObject(this)
 		}
+		ctor.prototype.toJSON[ClassDataSymbol] = true
 	}
 }
 

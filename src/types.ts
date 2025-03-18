@@ -1,7 +1,7 @@
 // deno-lint-ignore no-unused-vars
 import type { JsonClassSerializer } from "./json-class-serializer.ts"; // used for JsDoc
 
-const primitiveFactoryFns = [String, Number, Boolean, Date, BigInt] as const
+const primitiveFactoryFns = [String, Number, Boolean, Date, BigInt, ArrayBuffer, Uint8Array, DataView] as const
 export type Ctor = abstract new (...args: any[]) => any
 export type Thunk<T> = () => T
 export type MaybeThunk<T> = T | Thunk<T>
