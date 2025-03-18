@@ -1,6 +1,18 @@
 import { assertEquals } from "@std/assert";
 
+const previouslyCompared = new WeakMap<object, WeakSet<object>>()
+
 export function assertSimilarInstances(a: any, b: any): void {
+  if(a === b) return
+  if(previouslyCompared.get(a)?.has(b)) return
+
+  if(typeof a == 'object') {
+	if(!previouslyCompared.has(a)) {
+	  previouslyCompared.set(a, new WeakSet())
+	}
+	previouslyCompared.get(a)!.add(b)
+  }
+  
   assertEquals(a?.constructor, b?.constructor)
   if(a && typeof a == 'object') {
 	if (a instanceof Date) {

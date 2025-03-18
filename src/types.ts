@@ -16,7 +16,8 @@ export type Deserialized<Input, T extends Ctor> = Input extends InstanceType<T>
 		: InstanceType<T>
 
 export type PropertyType = 'class' | 'array' | 'map' | 'set' | 'any'
-export type PropertyKey = string | number | symbol
+export type PropertyOrMapKey = PropertyKey | [number, number] // tuple for map key/value pairs
+export type KeyOrValue = 'key' | 'value'
 
 /**
  * Pseudo-type for usage in {@link jsonProperty}, {@link jsonArrayProperty}, {@link jsonMapProperty}, {@link jsonSetProperty} to indicate that the property value / collection value / key can be of any type.
@@ -130,6 +131,38 @@ export interface JsonClassSerializerOptions {
 	 * - `number`: Pretty-print using the specified number of spaces for indentation.
 	 */
 	prettyPrint: boolean | string | number;
+
+	/**
+	 * Property name to use for serializing / deserializing circular dependency references. If null, circular dependencies will not be treated specially. Default: '#ref'
+	 * @example
+	 * ```typescript
+	 * class Person {
+	 *   @jsonProperty()
+	 *   public name: string,
+	 *   @jsonProperty(() => Person)
+	 *   public parent: Person | null = null
+	 *   @jsonArrayProperty(() => Person) 
+	 *   children: Person[] = []
+	 * 
+	 *   constructor(init: Partial<Person>) {
+	 *     Object.assign(this, init)
+	 *   }
+	 * }
+	 * 
+	 * const serializer = new JsonClassSerializer({
+	 *   circularDependencyReferencePropertyName: '#ref'
+	 * });
+	 * 
+	 * const parent = new Person({ name: 'John' })
+	 * parent.children = [new Person({ name: 'Peter', parent })]
+	 * const obj = {
+	 *   rootPerson: person
+	 * }
+	 * const json = serializer.serialize(parent)
+	 * // json: '{"name":"John","parent":null,"children":[{"name":"Peter","parent":{"#ref":["rootPerson"]},"children":[]}]}'
+	 * ```
+	 */
+	circularDependencyReferencePropertyName: string;
 }
 
 export interface EffectiveJsonClassSerializerOptions extends JsonClassSerializerOptions {

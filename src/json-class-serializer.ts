@@ -1,6 +1,7 @@
-import type { Ctor, CtorOrThunk, Deserialized, EffectiveJsonClassSerializerOptions, EntryOrKeyValue, JsonClassData, JsonClassSerializerOptions, JsonProperty } from "./types.ts";
+import type { Ctor, CtorOrThunk, Deserialized, EffectiveJsonClassSerializerOptions, EntryOrKeyValue, JsonClassData, JsonClassSerializerOptions, JsonProperty, KeyOrValue, PropertyOrMapKey } from "./types.ts";
 import { propertyHasKeyCtor, propertyHasValueCtor, resolveThunk } from "./types.ts";
 import { classDataByCtor, classDataByName, ClassDataSymbol } from "./metadata.ts";
+import { getInObjectFromPath, setInObjectFromPath } from "./utils.ts";
 
 /**
  * JsonClassSeriallzer serves to serialize and deserialize class instances to and from JSON / plain objects.
@@ -29,12 +30,16 @@ export class JsonClassSerializer {
 		failIfPlainObjectsFound: false,
 		mapSerializationStrategy: 'arrayOfEntries',
 		prettyPrint: false,
+		circularDependencyReferencePropertyName: '#ref',
 	}
 
 	/** 
 	 * Options used by this instance of JsonClassSerializer. These can also be changed after the instance is created.
 	 */
 	public options: EffectiveJsonClassSerializerOptions
+
+	private encounteredObjectPathsInSerialization = new WeakMap<object, PropertyKey[]>()
+	private encounteredReferencePathsInDeserialization: PropertyOrMapKey[][] = [] // to replace circular references after deserialization; tuple of two PropertyKeys for map key/value pairs
 
 	/**
 	 * Creates a new instance of JsonClassSerializer with the given options.
@@ -55,7 +60,7 @@ export class JsonClassSerializer {
 	 */
 	deserializeFromJson<T extends Ctor>(json: string, ctor?: T, failIfRootClassNotFound?: boolean): InstanceType<T> {
 		const obj = JSON.parse(json)
-		return this.deserializeFromObjectInternal(obj, this.getClassDataByCtor(ctor), failIfRootClassNotFound ?? this.options.failIfRootClassNotFound)
+		return this.deserializeFromObject(obj, ctor, failIfRootClassNotFound) as InstanceType<T>
 	}
 	
 	/**
@@ -66,7 +71,10 @@ export class JsonClassSerializer {
 	 * @returns The deserialized class instance.
 	 */
 	deserializeFromObject<Input extends any, T extends Ctor>(value: Input, ctor?: T, failIfRootClassNotFound?: boolean): Deserialized<Input, T> {
-		return this.deserializeFromObjectInternal(value, this.getClassDataByCtor(ctor), failIfRootClassNotFound ?? this.options.failIfRootClassNotFound)
+		this.encounteredReferencePathsInDeserialization = []
+		const result = this.deserializeFromObjectInternal(value, [], this.getClassDataByCtor(ctor), failIfRootClassNotFound ?? this.options.failIfRootClassNotFound)
+		this.replaceCircularReferences(result)
+		return result
 	}
 
 	/**
@@ -75,7 +83,7 @@ export class JsonClassSerializer {
 	 * @returns The serialized JSON string.
 	 */
 	serializeToJson(value: any): string {
-		const obj = this.serializeToObjectInternal(value, undefined);
+		const obj = this.serializeToObject(value);
 		const space = typeof this.options.prettyPrint == 'boolean'
 			? (this.options.prettyPrint ? '\t' : undefined)
 			: this.options.prettyPrint
@@ -88,29 +96,40 @@ export class JsonClassSerializer {
 	 * @returns The serialized plain object.
 	 */
 	serializeToObject<T=unknown>(value: any): T {
-		return this.serializeToObjectInternal(value, undefined) as T
+		this.encounteredObjectPathsInSerialization = new WeakMap()
+		return this.serializeToObjectInternal(value, [], undefined) as T
 	}
 	
 	// private serialization code
 
-	private serializeToObjectInternal(value: any, owningPropertyData: JsonProperty | undefined, asKeyOrValue: KeyOrValue = 'value'): any {
+	private serializeToObjectInternal(value: any, path: PropertyKey[], owningPropertyData: JsonProperty | undefined, asKeyOrValue: KeyOrValue = 'value'): any {
 		if(value == null) return value
 		const type = typeof value
 		if(type == 'string' || type === 'number' || type === 'boolean') return value
-		if(Array.isArray(value)) return this.serializeArray(value, owningPropertyData)
-		if(value instanceof Set) return this.serializeSet(value, owningPropertyData)
-		if(value instanceof Map) return this.serializeMap(value, owningPropertyData)
-		if(value instanceof Date) return value.toISOString()
-		if(type === 'object') return this.serializeObject(value, owningPropertyData, asKeyOrValue)
+
+		if(this.encounteredObjectPathsInSerialization.has(value)) {
+			const refPath = this.encounteredObjectPathsInSerialization.get(value)
+			return { [this.options.circularDependencyReferencePropertyName]: refPath }
+		}
+
 		if(type == 'bigint') return value.toString()
+			
+		// typeof value === 'object'
+		this.encounteredObjectPathsInSerialization.set(value, path)
+		
+		if(Array.isArray(value)) return this.serializeArray(value, path, owningPropertyData)
+		if(value instanceof Set) return this.serializeSet(value, path, owningPropertyData)
+		if(value instanceof Map) return this.serializeMap(value, path, owningPropertyData)
+		if(value instanceof Date) return value.toISOString()
+		if(type === 'object') return this.serializeObject(value, path, owningPropertyData, asKeyOrValue)
 		return value
 	}
 	
-	private serializeArray(value: any[], owningPropertyData: JsonProperty | undefined): any {
-		return value.map(item => this.serializeToObjectInternal(item, owningPropertyData))
+	private serializeArray(value: any[], path: PropertyKey[], owningPropertyData: JsonProperty | undefined): any {
+		return value.map((item, idx) => this.serializeToObjectInternal(item, path.concat(idx), owningPropertyData))
 	}
 	
-	private serializeObject(value: any, owningPropertyData: JsonProperty | undefined, asKeyOrValue: KeyOrValue = 'value'): any {
+	private serializeObject(value: any, path: PropertyKey[], owningPropertyData: JsonProperty | undefined, asKeyOrValue: KeyOrValue = 'value'): any {
 		const ctor = value.constructor
 		let jsonData = this.getClassDataByCtor(ctor) ?? value[ClassDataSymbol]
 		if(!jsonData) {
@@ -125,7 +144,7 @@ export class JsonClassSerializer {
 		if(jsonData) {
 			if(jsonData.options?.serializer) {
 				value = jsonData.options.serializer(value)
-				return this.serializeToObjectInternal(value, owningPropertyData)
+				return this.serializeToObjectInternal(value, path, owningPropertyData)
 			}
 
 			const obj: any = {}
@@ -144,28 +163,28 @@ export class JsonClassSerializer {
 				if(propData.options.serializer) {
 					propValue = propData.options.serializer(propValue)
 				}
-				obj[key] = this.serializeToObjectInternal(propValue, propData)
+				obj[key] = this.serializeToObjectInternal(propValue, path.concat(key), propData)
 			}
 			return obj
 		} else {
 			const obj: any = {}
 			for(const key in value) {
-				obj[key] = this.serializeToObjectInternal(value[key], undefined)
+				obj[key] = this.serializeToObjectInternal(value[key], path.concat(key), undefined)
 			}
 			return obj
 		}
 	
 	}
 	
-	private serializeSet(value: Set<any>, owningPropertyData: JsonProperty | undefined): any {
-		return Array.from(value).map(item => this.serializeToObjectInternal(item, owningPropertyData))
+	private serializeSet(value: Set<any>, path: PropertyKey[], owningPropertyData: JsonProperty | undefined): any {
+		return Array.from(value).map((item, idx) => this.serializeToObjectInternal(item, path.concat(idx), owningPropertyData))
 	}
 	
-	private serializeMap(value: Map<any, any>, owningPropertyData: JsonProperty | undefined): any {
+	private serializeMap(value: Map<any, any>, path: PropertyKey[], owningPropertyData: JsonProperty | undefined): any {
 		const entries: EntryOrKeyValue[] = Array.from(value.entries())
-			.map(([key, value]) => {
-				const serializedKey = this.serializeToObjectInternal(key, owningPropertyData, 'key')
-				const serializedValue = this.serializeToObjectInternal(value, owningPropertyData)
+			.map(([key, value], idx) => {
+				const serializedKey = this.serializeToObjectInternal(key, path.concat(idx, 0), owningPropertyData, 'key')
+				const serializedValue = this.serializeToObjectInternal(value, path.concat(idx, 1), owningPropertyData)
 
 				switch(this.options.mapSerializationStrategy) {
 					case 'arrayOfEntries': return [serializedKey, serializedValue] as [any, any]
@@ -178,7 +197,12 @@ export class JsonClassSerializer {
 	
 	// private deserialization code
 
-	private deserializeFromObjectInternal(value: any, valueClassData: JsonClassData | undefined, failIfClassNotFound: boolean): any {
+	private deserializeFromObjectInternal(value: any, path: PropertyOrMapKey[], valueClassData: JsonClassData | undefined, failIfClassNotFound: boolean): any {
+		if(value?.[this.options.circularDependencyReferencePropertyName]) {
+			this.encounteredReferencePathsInDeserialization.push(path)
+			return value // will be replaced later when deserialization is almost done
+		}
+
 		if(valueClassData?.options?.deserializer) {
 			value = valueClassData.options.deserializer(value)
 		}
@@ -187,9 +211,9 @@ export class JsonClassSerializer {
 		const type = typeof value
 		if(!valueClassData && (type == 'string' || type === 'number' || type === 'boolean')) return value
 		
-		if(Array.isArray(value)) return this.deserializeArray(value, valueClassData, failIfClassNotFound)
+		if(Array.isArray(value)) return this.deserializeArray(value, path, valueClassData, failIfClassNotFound)
 
-		if(valueClassData || type === 'object') return this.deserializeObject(value, valueClassData, failIfClassNotFound)
+		if(valueClassData || type === 'object') return this.deserializeObject(value, path, valueClassData, failIfClassNotFound)
 		return value
 	}
 	
@@ -240,7 +264,7 @@ export class JsonClassSerializer {
 		return properties
 	}
 
-	private deserializeObject(value: any, valueClassData: JsonClassData | undefined, failIfClassNotFound: boolean): any {
+	private deserializeObject(value: any, path: PropertyOrMapKey[], valueClassData: JsonClassData | undefined, failIfClassNotFound: boolean): any {
 		const needToDetermineClassData = !valueClassData || (value && typeof value == 'object')
 		if(needToDetermineClassData) {
 			const resolvedType = this.options.deserializationClassResolver?.(value, this.options)
@@ -281,23 +305,23 @@ export class JsonClassSerializer {
 							switch(propData.type) {
 								case 'class': {
 									const valueClassData = this.getClassDataByCtor(propData.valueCtorOrThunk)
-									newValue = this.deserializeFromObjectInternal(propValue, valueClassData, false)
+									newValue = this.deserializeFromObjectInternal(propValue, path.concat(key), valueClassData, false)
 									break
 								}
 								case 'array': {
 									const valueClassData = this.getClassDataByCtor(propData.valueCtorOrThunk)
-									newValue = this.deserializeArray(propValue, valueClassData, false)
+									newValue = this.deserializeArray(propValue, path.concat(key), valueClassData, false)
 									break
 								}
 								case 'set': {
 									const valueClassData = this.getClassDataByCtor(propData.valueCtorOrThunk)
-									newValue = this.deserializeSet(propValue, valueClassData)
+									newValue = this.deserializeSet(propValue, path.concat(key), valueClassData)
 									break
 								}
 								case 'map': {
 									const keyClassData = this.getClassDataByCtor(propData.keyCtorOrThunk)
 									const valueClassData = this.getClassDataByCtor(propData.valueCtorOrThunk)
-									newValue = this.deserializeMap(propValue, keyClassData, valueClassData)
+									newValue = this.deserializeMap(propValue, path.concat(key), keyClassData, valueClassData)
 									break
 								}
 								case 'any': {
@@ -317,31 +341,62 @@ export class JsonClassSerializer {
 			}
 			const obj: any = {}
 			for(const key in value) {
-				obj[key] = this.deserializeFromObjectInternal(value[key], undefined, false)
+				obj[key] = this.deserializeFromObjectInternal(value[key], path.concat(key), undefined, false)
 			}
 			return obj
 		}
 	}
 
-	private deserializeArray(value: any[], valueClassData: JsonClassData | undefined, failIfClassNotFound: boolean): any {
-		return value.map(item => this.deserializeFromObjectInternal(item, valueClassData, failIfClassNotFound))
+	private deserializeArray(value: any[], path: PropertyOrMapKey[], valueClassData: JsonClassData | undefined, failIfClassNotFound: boolean): any {
+		return value.map((item, idx) => this.deserializeFromObjectInternal(item, path.concat(idx), valueClassData, failIfClassNotFound))
 	}
 	
-	private deserializeSet(value: any[], valueClassData: JsonClassData | undefined): any {
-		return new Set(this.deserializeArray(value, valueClassData, false))
+	private deserializeSet(value: any[], path: PropertyOrMapKey[], valueClassData: JsonClassData | undefined): any {
+		return new Set(this.deserializeArray(value, path, valueClassData, false))
 	}
 	
-	private deserializeMap(value: ([any, any] | { key: any, value: any })[], keyClassData: JsonClassData | undefined, valueClassData: JsonClassData | undefined): any {
+	private deserializeMap(value: ([any, any] | { key: any, value: any })[], path: PropertyOrMapKey[], keyClassData: JsonClassData | undefined, valueClassData: JsonClassData | undefined): any {
 		const entries: ([any, any])[] = value
-			.map(entry => {
+			.map((entry, idx) => {
 				if(!Array.isArray(entry)) {
 					entry = [entry.key, entry.value]
 				}
 				const [key, value] = entry
-				return [this.deserializeFromObjectInternal(key, keyClassData, false), this.deserializeFromObjectInternal(value, valueClassData, false)]
+				return [this.deserializeFromObjectInternal(key, [...path, [idx, 0]], keyClassData, false), this.deserializeFromObjectInternal(value, [...path, [idx, 1]], valueClassData, false)] as const
 			})
 		return new Map(entries)
 	}
-}
 
-type KeyOrValue = 'key' | 'value'
+	private replaceCircularReferences(obj: any) {
+		for(const refPath of this.encounteredReferencePathsInDeserialization) {
+			const refObj = getInObjectFromPath(obj, refPath)
+      		const targetPath = refObj[this.options.circularDependencyReferencePropertyName];
+			const targetObj = getInObjectFromPath(obj, targetPath);
+			setInObjectFromPath(obj, refPath, targetObj)
+			// const refParentObj = getInObjectFromPath(obj, refPath.slice(0, refPath.length - 1))
+			// const refObjProperty = refPath.at(-1)!
+			// if(Array.isArray(refObjProperty)) {
+			// 	if(!(refParentObj instanceof Map)) {
+			// 		throw new Error(`Failed to deserialize reference from path ${JSON.stringify(refPath)}: expected Map, got ${refParentObj}`)
+			// 	}
+			// 	const [idx, keyOrValueIdx] = refObjProperty as [number, number]
+			// 	const entries = [...refParentObj.entries()]
+			// 	const refObj = entries![idx]![keyOrValueIdx]
+
+			// 	const targetPath = refObj[this.options.circularDependencyReferencePropertyName]
+			// 	const targetObj = getInObjectFromPath(obj, targetPath)
+
+			// 	entries![idx]![keyOrValueIdx] = targetObj
+			// 	const refGrandParentObj = getInObjectFromPath(obj, refPath.slice(0, refPath.length - 2))
+			// 	Reflect.set(refGrandParentObj, refo)
+			// } else {
+			// }
+			// const refObj = refParentObj[refObjProperty]
+
+			// const targetPath = refObj[this.options.circularDependencyReferencePropertyName]
+			// const targetObj = getInObjectFromPath(obj, targetPath)
+			
+			// Reflect.set(refParentObj, refObjProperty, targetObj)
+		}
+	}
+}

@@ -501,3 +501,64 @@ Deno.test(function serializeObjectPropertyWithoutConstructor() {
     jcs.serializeToJson(new Foo)
   })
 })
+
+Deno.test(function serializeCircularDependencies() {
+  class Person {
+    @jsonProperty(Person)
+    parent?: Person
+    @jsonArrayProperty(Person)
+    children: Person[] = []
+
+    constructor(init?: Partial<Person>) {
+      if(init) Object.assign(this, init)
+    }
+  }
+
+  const parent = new Person
+  parent.children = [
+    new Person({ parent }),
+  ]
+
+  const jcs = new JsonClassSerializer
+  const json = jcs.serializeToJson(parent)
+  const deserialized = jcs.deserializeFromJson(json, Person)
+  assertSimilarInstances(deserialized, parent)
+  assertEquals(deserialized.children[0].parent, deserialized)
+})
+
+Deno.test(function serializeCircularDependenciesInCollections() {
+  class Foo {
+    @jsonArrayProperty(Foo)
+    arr: Foo[] = []
+    @jsonMapProperty(Foo, Foo)
+    map: Map<Foo, Foo> = new Map
+    @jsonSetProperty(Foo)
+    set: Set<Foo> = new Set
+    @jsonProperty(AnyType)
+    nestedMap: Map<Foo, Map<Foo, Foo>> = new Map
+  }
+
+  const obj = new Foo
+  obj.arr = [obj]
+  obj.map.set(obj, obj)
+  obj.set.add(obj)
+  obj.nestedMap.set(obj, obj.map)
+
+  const jcs = new JsonClassSerializer
+  const json = jcs.serializeToJson(obj)
+  assertEquals(json, '{"arr":[{"#ref":[]}],"map":[[{"#ref":[]},{"#ref":[]}]],"set":[{"#ref":[]}],"nestedMap":[[{"#ref":[]},{"#ref":["map"]}]]}')
+
+  const deserialized = jcs.deserializeFromJson(json, Foo)
+  assertSimilarInstances(deserialized, obj)
+  assertEquals(deserialized.arr[0], deserialized)
+  assertEquals(deserialized.map.entries().next().value![0], deserialized)
+  assertEquals(deserialized.map.entries().next().value![1], deserialized)
+  assertEquals(Array.from(deserialized.set)[0], deserialized)
+})
+
+Deno.test(function serializeCircularDependenciesNestedObjects() {
+  // type Foo {
+  //   arr: Foo[]
+
+  // }
+})

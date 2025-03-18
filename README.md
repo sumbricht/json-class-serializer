@@ -14,6 +14,7 @@ JsonClassSerializer can correctly handle the following:
    - Arrays and Sets of any of the above
    - Maps with both keys and values of any of the above
  - Plain JavaScript objects, arrays and primitive values (*Note:* deserialzing Date objects needs a bit of configuration)
+ - Circular references in classes and plain JavaScript objects
 
 ## Installation
 
@@ -154,7 +155,8 @@ const jcs = new JsonClassSerializer({
   failIfRootClassNotFound: false, // default: false
   failIfPlainObjectsFound: false, // default: false
 	mapSerializationStrategy: 'arrayOfKeyValueObjects' // default: 'arrayOfEntries'
-	prettyPrint: true, // true: indent by tabs, number: indent by spaces, string: indent by given string, false: no pretty-print
+	prettyPrint: true, // true: indent by tabs, number: indent by spaces, string: indent by given string, false: no pretty-print. Default: false
+  circularDependencyReferencePropertyName: '#ref', // default: '#ref'
 })
 
 // change defaults for all JsonClassSerializers that will be created in the future

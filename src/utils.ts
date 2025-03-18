@@ -1,4 +1,5 @@
 import { classDataByCtor } from "./metadata.ts";
+import { PropertyOrMapKey } from "./types.ts";
 
 /**
  * Gets the name of a class as registered with the `@jsonClass` decorator.
@@ -7,6 +8,55 @@ import { classDataByCtor } from "./metadata.ts";
 export function getJsonClassName(ctorOrInstance: any): string {
     const ctor = typeof ctorOrInstance === 'function' ? ctorOrInstance : ctorOrInstance.constructor
     return classDataByCtor.get(ctor)?.name || ctor.name
+}
+
+export function getInObjectFromPath(obj: any, path: PropertyOrMapKey[]) {
+    let current = obj
+    const processedKeys: PropertyOrMapKey[] = []
+    for (const key of path) {
+        processedKeys.push(key)
+        if(Array.isArray(key)) {
+            if(!(current instanceof Map)) {
+                throw new Error(`Failed to deserialize reference from path ${JSON.stringify(path)} at position ${JSON.stringify(processedKeys)}: expected Map, got ${current}`)
+            }
+            current = [...current.entries()][key[0]][key[1]]
+        } else if(current instanceof Set) {
+            current = [...current][key as number]
+        } else {
+            current = current[key]
+        }
+        if (!current) {
+            throw new Error(`Failed to deserialize reference from path ${JSON.stringify(path)} at position ${JSON.stringify(processedKeys)}`)
+        }
+    }
+    return current
+}
+
+export function setInObjectFromPath(obj: any, path: PropertyOrMapKey[], value: any) {
+    const parent = getInObjectFromPath(obj, path.slice(0, -1))
+    const property = path.at(-1)!
+    if(Array.isArray(property)) {
+        if(!(parent instanceof Map)) throw new Error(`Failed to set reference at path ${JSON.stringify(path)}: expected Map, got ${parent}`)
+        const [idx, keyOrValueIdx] = property as [number, number]
+        const entries = [...parent.entries()]
+        if(keyOrValueIdx == 1) {
+            // set value; that's the easy case
+            parent.set(entries[idx][0], value)
+        } else {
+            // reconstruct new map with new key
+            entries[idx][0] = value
+            const newMap = new Map(entries)
+            setInObjectFromPath(obj, path.slice(0, -1), newMap)
+        }
+    } else {
+        if(parent instanceof Set) {
+            const members = [...parent]
+            members[property as number] = value
+            setInObjectFromPath(obj, path.slice(0, -1), new Set(members))
+        } else {
+            Reflect.set(parent, property, value)
+        }
+    }
 }
 
 // conversion of buffers to base64
