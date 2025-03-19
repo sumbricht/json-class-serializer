@@ -1,7 +1,7 @@
 {
   "name": "@sumbricht/json-class-serializer",
   "description": "Serialize/deserialize JS classes to/from JSON strings and plain objects",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "type": "module",
   "main": "dist/mod.cjs",
   "module": "dist/mod.js",
@@ -14,6 +14,7 @@
     }
   },
   "files": [
+    "./src",
     "./dist"
   ],
   "scripts": {
@@ -24,7 +25,9 @@
     "entryPoints": ["src/mod.ts"],
     "format": ["esm", "cjs"],
     "dts": true,
-    "clean": true
+    "clean": true,
+    "sourcemap": true,
+    "minify": true
   },
   "repository": {
     "type": "git",
