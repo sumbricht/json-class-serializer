@@ -15,7 +15,7 @@ JsonClassSerializer can correctly handle the following:
    - Arrays and Sets of any of the above
    - Maps with both keys and values of any of the above
  - Plain JavaScript objects, arrays and primitive values (*Note:* deserialzing Date objects needs a bit of configuration)
- - Circular references in classes and plain JavaScript objects
+ - Circular references (and multiple instances of same object) in classes and plain JavaScript objects (configuration option needed)
 
 ## Installation
 
@@ -157,7 +157,7 @@ const jcs = new JsonClassSerializer({
   failIfPlainObjectsFound: false, // default: false
 	mapSerializationStrategy: 'arrayOfKeyValueObjects' // default: 'arrayOfEntries'
 	prettyPrint: true, // true: indent by tabs, number: indent by spaces, string: indent by given string, false: no pretty-print. Default: false
-  circularDependencyReferencePropertyName: '#ref', // default: '#ref'
+  circularDependencyReferencePropertyName: '#ref', // default: null
 })
 
 // change defaults for all JsonClassSerializers that will be created in the future
@@ -263,6 +263,55 @@ class Address { /* ... */ }
 
 @jsonClass()
 class SocialSecurityDetails { /* ... */ }
+```
+
+## Special cases
+### Circular dependencies / multiple instances of same object
+When serializing data with circular dependencies, it is necessary to replace references to already encountered objects with a placeholder:
+
+```typescript
+@jsonClass('Person')
+class Person {
+  @jsonProperty(() => Person)
+  parent: Person | undefined
+  @jsonArrayProperty(() => Person)
+  children: Person[] = []
+
+  constructor(init: Partial<Person>) {
+    Object.assign(this, init)
+  }
+}
+const person = new Person({
+  children: [
+    new Person({})
+  ]
+})
+person.children[0].parent = person // introduce circular dependency person -> children[0] -> parent
+
+const obj = { person } // wrap in object to make the example more interesting
+
+const jcs = new JsonClassSerializer({
+  circularDependencyReferencePropertyName: '#ref'
+})
+const json = jcs.serializeToJson(obj) // circular reference is replaced by {#ref:["Person"]}, where ["Person"] is the path to the the referenced object relative to the root object that was serialized (obj in this case)
+// '{"person":{"#type":"Person","children":[{"parent":{"#ref":["person"]},"children":[]}]}}'
+```
+
+When serializing data that have **no** circular dependencies, but the same object appears multiple times, the approach above should also be used to guarantee consistency. If such data are serialized and deserialized again without the option `circularDependencyReferencePropertyName`, the deserialized data don't reference the same object anymore, which may or may not be a problem depending on the use case:
+
+```typescript
+const childObj = { a: 1 }
+const obj = {
+  foo: childObj,
+  bar: childObj,
+} // obj.foo === obj.bar
+
+const jcs = new JsonClassSerializer
+const json = jcs.serializeToJson(obj)
+// everything fine so far: '{"foo":{"a":1},"bar":{"a":1}}'
+
+const deserialized = jcs.deserializeFromJson(json)
+// deserialized.foo !== deserialized.bar; references don't point to same object anymore
 ```
 
 ## Attribution

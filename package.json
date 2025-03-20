@@ -27,7 +27,7 @@
     "dts": true,
     "clean": true,
     "sourcemap": true,
-    "minify": true
+    "minify": false
   },
   "repository": {
     "type": "git",

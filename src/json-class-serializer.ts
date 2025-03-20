@@ -30,7 +30,7 @@ export class JsonClassSerializer {
 		failIfPlainObjectsFound: false,
 		mapSerializationStrategy: 'arrayOfEntries',
 		prettyPrint: false,
-		circularDependencyReferencePropertyName: '#ref',
+		circularDependencyReferencePropertyName: null,
 	}
 
 	/** 
@@ -40,6 +40,7 @@ export class JsonClassSerializer {
 
 	private encounteredObjectPathsInSerialization = new WeakMap<object, PropertyKey[]>()
 	private encounteredReferencePathsInDeserialization: PropertyOrMapKey[][] = [] // to replace circular references after deserialization; tuple of two PropertyKeys for map key/value pairs
+	private rootSerializationObjRef: WeakRef<any> | undefined
 
 	/**
 	 * Creates a new instance of JsonClassSerializer with the given options.
@@ -97,7 +98,12 @@ export class JsonClassSerializer {
 	 */
 	serializeToObject<T=unknown>(value: any): T {
 		this.encounteredObjectPathsInSerialization = new WeakMap()
-		return this.serializeToObjectInternal(value, [], undefined) as T
+		if(value && typeof value == 'object') {
+			this.rootSerializationObjRef = new WeakRef(value)
+		}
+		const serialized = this.serializeToObjectInternal(value, [], undefined) as T
+		this.rootSerializationObjRef = undefined
+		return serialized
 	}
 	
 	// private serialization code
@@ -108,8 +114,24 @@ export class JsonClassSerializer {
 		if(type == 'string' || type === 'number' || type === 'boolean') return value
 
 		if(this.encounteredObjectPathsInSerialization.has(value)) {
-			const refPath = this.encounteredObjectPathsInSerialization.get(value)
-			return { [this.options.circularDependencyReferencePropertyName]: refPath }
+			if(this.options.circularDependencyReferencePropertyName) {
+				// object has been encountered before; return reference to its path
+				const refPath = this.encounteredObjectPathsInSerialization.get(value)
+				return { [this.options.circularDependencyReferencePropertyName]: refPath }
+			} else {
+				// object has been encountered before, but circular reference references are not activated.
+				// check parent chain for value to determine if it's a circular reference and throw only in that case
+				const rootObj = this.rootSerializationObjRef?.deref()
+				if(rootObj) {
+					for(let pathLen = 0; pathLen < path.length; pathLen++) {
+						const parentPath = path.slice(0, pathLen)
+						const parentValue = getInObjectFromPath(rootObj, parentPath)
+						if(parentValue === value) {
+							throw new Error(`Circular reference detected at path ${JSON.stringify(path)}. To enable circular reference replacement, set the 'circularDependencyReferencePropertyName' option.`)
+						}
+					}
+				}
+			}
 		}
 
 		if(type == 'bigint') return value.toString()
@@ -200,7 +222,7 @@ export class JsonClassSerializer {
 	// private deserialization code
 
 	private deserializeFromObjectInternal(value: any, path: PropertyOrMapKey[], valueClassData: JsonClassData | undefined, failIfClassNotFound: boolean): any {
-		if(value?.[this.options.circularDependencyReferencePropertyName]) {
+		if(this.options.circularDependencyReferencePropertyName && value?.[this.options.circularDependencyReferencePropertyName]) {
 			this.encounteredReferencePathsInDeserialization.push(path)
 			return value // will be replaced later when deserialization is almost done
 		}
@@ -370,35 +392,13 @@ export class JsonClassSerializer {
 	}
 
 	private replaceCircularReferences(obj: any) {
+		if(!this.options.circularDependencyReferencePropertyName) return
+
 		for(const refPath of this.encounteredReferencePathsInDeserialization) {
 			const refObj = getInObjectFromPath(obj, refPath)
       		const targetPath = refObj[this.options.circularDependencyReferencePropertyName];
 			const targetObj = getInObjectFromPath(obj, targetPath);
 			setInObjectFromPath(obj, refPath, targetObj)
-			// const refParentObj = getInObjectFromPath(obj, refPath.slice(0, refPath.length - 1))
-			// const refObjProperty = refPath.at(-1)!
-			// if(Array.isArray(refObjProperty)) {
-			// 	if(!(refParentObj instanceof Map)) {
-			// 		throw new Error(`Failed to deserialize reference from path ${JSON.stringify(refPath)}: expected Map, got ${refParentObj}`)
-			// 	}
-			// 	const [idx, keyOrValueIdx] = refObjProperty as [number, number]
-			// 	const entries = [...refParentObj.entries()]
-			// 	const refObj = entries![idx]![keyOrValueIdx]
-
-			// 	const targetPath = refObj[this.options.circularDependencyReferencePropertyName]
-			// 	const targetObj = getInObjectFromPath(obj, targetPath)
-
-			// 	entries![idx]![keyOrValueIdx] = targetObj
-			// 	const refGrandParentObj = getInObjectFromPath(obj, refPath.slice(0, refPath.length - 2))
-			// 	Reflect.set(refGrandParentObj, refo)
-			// } else {
-			// }
-			// const refObj = refParentObj[refObjProperty]
-
-			// const targetPath = refObj[this.options.circularDependencyReferencePropertyName]
-			// const targetObj = getInObjectFromPath(obj, targetPath)
-			
-			// Reflect.set(refParentObj, refObjProperty, targetObj)
 		}
 	}
 }

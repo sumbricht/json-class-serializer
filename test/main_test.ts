@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertThrows,  } from "@std/assert";
+import { assert, assertStrictEquals, assertNotStrictEquals, assertThrows,  } from "@std/assert";
 import { classDataByCtor, ClassDataSymbol, jsonArrayProperty, jsonClass, jsonMapProperty, jsonProperty, jsonSetProperty } from "../src/metadata.ts";
 import { JsonClassSerializer } from "../src/json-class-serializer.ts";
 import { assertSimilarInstances } from "./test-util.ts";
@@ -112,14 +112,14 @@ const createTestPerson = () => new Person({
 Deno.test(function serializeObjectWithPrimitives() {
   const jcs = new JsonClassSerializer
   const json = jcs.serializeToJson({ a: 1, b: "2", c: true, d: new Date('2000-01-01') })
-  assertEquals(json, '{"a":1,"b":"2","c":true,"d":"2000-01-01T00:00:00.000Z"}')
+  assertStrictEquals(json, '{"a":1,"b":"2","c":true,"d":"2000-01-01T00:00:00.000Z"}')
 });
 
 Deno.test(function serializeClassProperties() {
   const person = createTestPerson()
   const jcs = new JsonClassSerializer
   const json = jcs.serializeToJson(person)
-  assertEquals(json, '{"#type":"Person","__type":"Person","name":"John","dob":"2000-01-01T00:00:00.000Z","numberOfChildren":2,"isMarried":true,"address":{"city":"New York"},"accountBalance":"9007199254740991000","nationalities":[{"country":"Switzerland"},{"country":"USA"}],"nicknames":["Johnny","John"],"children":[["Alice",{"__type":"Person","name":"Alice","dob":"2010-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[],"accounts":[]}],["Bob",{"__type":"Person","name":"Bob","dob":"2012-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[],"accounts":[]}]],"accounts":[[0,"USD 1000.25"],[1,"EUR 2000"]]}')
+  assertStrictEquals(json, '{"#type":"Person","__type":"Person","name":"John","dob":"2000-01-01T00:00:00.000Z","numberOfChildren":2,"isMarried":true,"address":{"city":"New York"},"accountBalance":"9007199254740991000","nationalities":[{"country":"Switzerland"},{"country":"USA"}],"nicknames":["Johnny","John"],"children":[["Alice",{"__type":"Person","name":"Alice","dob":"2010-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[],"accounts":[]}],["Bob",{"__type":"Person","name":"Bob","dob":"2012-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[],"accounts":[]}]],"accounts":[[0,"USD 1000.25"],[1,"EUR 2000"]]}')
 });
 
 Deno.test(function serializeViaJsonStringify() {
@@ -127,7 +127,7 @@ Deno.test(function serializeViaJsonStringify() {
   const jcs = new JsonClassSerializer
   const jsonFromjcs = jcs.serializeToJson(person)
   const jsonFromJsonStringify = JSON.stringify(person)
-  assertEquals(jsonFromjcs, jsonFromJsonStringify)
+  assertStrictEquals(jsonFromjcs, jsonFromJsonStringify)
 });
 
 Deno.test(function deserializeClassWithClassHint() {
@@ -152,8 +152,8 @@ Deno.test(function deserializeClassWithOnlyAlternativeTypeProperty() {
   const json = jcs.serializeToJson(person)
   const obj = JSON.parse(json)
 
-  assertEquals(obj['#type'], undefined)
-  assertEquals(obj['__type'], 'Person')
+  assertStrictEquals(obj['#type'], undefined)
+  assertStrictEquals(obj['__type'], 'Person')
   const deserialized = jcs.deserializeFromObject(obj, undefined)
   assertSimilarInstances(deserialized, person)
 });
@@ -183,7 +183,7 @@ Deno.test(function deserializeClassWithinPlainObject() {
   const json = jcs.serializeToJson(obj)
   
   const plainObj = JSON.parse(json)
-  assertEquals(plainObj.foo.bar.baz[0]['#type'], 'Person')
+  assertStrictEquals(plainObj.foo.bar.baz[0]['#type'], 'Person')
   
   const deserialized = jcs.deserializeFromJson(json)
   assertSimilarInstances(deserialized, obj)
@@ -233,7 +233,7 @@ Deno.test(function serializeVmProxyOfClassInstance() {
 
   const jcs = new JsonClassSerializer
   const json = jcs.serializeToJson(proxy)
-  assertEquals(wasConstructorAccessed, true)
+  assertStrictEquals(wasConstructorAccessed, true)
   const deserialized = new JsonClassSerializer().deserializeFromJson(json, undefined)
   assertSimilarInstances(deserialized, person)
 });
@@ -248,17 +248,17 @@ Deno.test(function serializeWithPrettyPrint() {
   const jsonFalse = serializeWithSpace(false)
   const jsonNumber = serializeWithSpace(3)
   const jsonString = serializeWithSpace('   ')
-  assertEquals(jsonTrue, `{\n\t"foo": {\n\t\t"bar": {\n\t\t\t"baz": [\n\t\t\t\t1,\n\t\t\t\t2,\n\t\t\t\t3\n\t\t\t]\n\t\t}\n\t}\n}`)
-  assertEquals(jsonFalse, '{"foo":{"bar":{"baz":[1,2,3]}}}')
-  assertEquals(jsonNumber, `{\n   "foo": {\n      "bar": {\n         "baz": [\n            1,\n            2,\n            3\n         ]\n      }\n   }\n}`)
-  assertEquals(jsonString, `{\n   "foo": {\n      "bar": {\n         "baz": [\n            1,\n            2,\n            3\n         ]\n      }\n   }\n}`)
+  assertStrictEquals(jsonTrue, `{\n\t"foo": {\n\t\t"bar": {\n\t\t\t"baz": [\n\t\t\t\t1,\n\t\t\t\t2,\n\t\t\t\t3\n\t\t\t]\n\t\t}\n\t}\n}`)
+  assertStrictEquals(jsonFalse, '{"foo":{"bar":{"baz":[1,2,3]}}}')
+  assertStrictEquals(jsonNumber, `{\n   "foo": {\n      "bar": {\n         "baz": [\n            1,\n            2,\n            3\n         ]\n      }\n   }\n}`)
+  assertStrictEquals(jsonString, `{\n   "foo": {\n      "bar": {\n         "baz": [\n            1,\n            2,\n            3\n         ]\n      }\n   }\n}`)
 })
 
 Deno.test(function classInstanceHasJsonClassData() {
   const person = createTestPerson()
   const classData = (person as any)[ClassDataSymbol];
   assert(classData)
-  assertEquals(classData, classDataByCtor.get(Person))
+  assertStrictEquals(classData, classDataByCtor.get(Person))
 });
 
 Deno.test(function mapSerializationStrategyKeyValueObjects() {
@@ -277,7 +277,7 @@ Deno.test(function mapSerializationStrategyKeyValueObjects() {
   ]))
   const jcs = new JsonClassSerializer({ mapSerializationStrategy: 'arrayOfKeyValueObjects' })
   const json = jcs.serializeToJson(map)
-  assertEquals(json, '{"#type":"Settings","map":[{"key":"a","value":1},{"key":"b","value":2}]}')
+  assertStrictEquals(json, '{"#type":"Settings","map":[{"key":"a","value":1},{"key":"b","value":2}]}')
   
   const deserializedWithKeyValueStrategy = jcs.deserializeFromJson(json)
   assertSimilarInstances(deserializedWithKeyValueStrategy, map)
@@ -310,7 +310,7 @@ Deno.test(function classInstanceWithInheritance() {
   const cat = new Cat({ name: 'Tom', character: 'lazy', fur: 'fuzzy' })
   const jcs = new JsonClassSerializer
   const json = jcs.serializeToJson(cat)
-  assertEquals(json, '{"#type":"Cat","name":"Tom","character":"lazy","fur":"fuzzy"}')
+  assertStrictEquals(json, '{"#type":"Cat","name":"Tom","character":"lazy","fur":"fuzzy"}')
   const deserialized = jcs.deserializeFromJson(json, Cat)
   assertSimilarInstances(deserialized, cat)
 });
@@ -332,12 +332,12 @@ Deno.test(function utilGetJsonClassName() {
   @jsonClass('Fuzzy cat')
   class FuzzyCat extends Cat {}
   
-  assertEquals(getJsonClassName(Animal), 'Animal')
-  assertEquals(getJsonClassName(Cat), 'Cat')
-  assertEquals(getJsonClassName(FuzzyCat), 'Fuzzy cat')
-  assertEquals(getJsonClassName(new Animal), 'Animal')
-  assertEquals(getJsonClassName(new Cat), 'Cat')
-  assertEquals(getJsonClassName(new FuzzyCat), 'Fuzzy cat')
+  assertStrictEquals(getJsonClassName(Animal), 'Animal')
+  assertStrictEquals(getJsonClassName(Cat), 'Cat')
+  assertStrictEquals(getJsonClassName(FuzzyCat), 'Fuzzy cat')
+  assertStrictEquals(getJsonClassName(new Animal), 'Animal')
+  assertStrictEquals(getJsonClassName(new Cat), 'Cat')
+  assertStrictEquals(getJsonClassName(new FuzzyCat), 'Fuzzy cat')
 })
 
 Deno.test(function anyTypeProperties() {
@@ -365,7 +365,7 @@ Deno.test(function anyTypeProperties() {
   })
   const jcs = new JsonClassSerializer
   const json = jcs.serializeToJson(foo)
-  assertEquals(json, '{"#type":"Foo","obj":{"a":1,"b":"2","c":true},"array":[1,"2",true],"map":[[1,"a"],["b",2]],"set":[1,"2",true]}')
+  assertStrictEquals(json, '{"#type":"Foo","obj":{"a":1,"b":"2","c":true},"array":[1,"2",true],"map":[[1,"a"],["b",2]],"set":[1,"2",true]}')
   const deserialized = jcs.deserializeFromJson(json, Foo)
   assertSimilarInstances(deserialized, foo)
 })
@@ -424,7 +424,7 @@ Deno.test(function deserializeUnannotatedNestedClasses() {
   const jcs = new JsonClassSerializer
   const jcsProhibitPlainRoot = new JsonClassSerializer({ failIfRootClassNotFound: true })
   const json = jcs.serializeToJson(foo)
-  assertEquals(json, '{"bar":{"baz":""}}')
+  assertStrictEquals(json, '{"bar":{"baz":""}}')
 
   assertThrows(() => {
     jcsProhibitPlainRoot.deserializeFromJson(json, undefined)
@@ -446,8 +446,8 @@ Deno.test(function serializeBinaryData() {
   const jsonUint8 = jcs.serializeToJson(uint8Array)
   const jsonArrayBuffer = jcs.serializeToJson(arrayBuffer)
   const jsonDataView = jcs.serializeToJson(dataView)
-  assertEquals(jsonArrayBuffer, jsonUint8)
-  assertEquals(jsonDataView, jsonUint8)
+  assertStrictEquals(jsonArrayBuffer, jsonUint8)
+  assertStrictEquals(jsonDataView, jsonUint8)
   
   const deserializedArrayBuffer = jcs.deserializeFromJson(jsonArrayBuffer, ArrayBuffer)
   const deserializedUint8 = jcs.deserializeFromJson(jsonUint8, Uint8Array)
@@ -535,6 +535,30 @@ Deno.test(function serializeObjectPropertyWithoutConstructor() {
   })
 })
 
+Deno.test(function serializeCircularDependenciesWithoutCorrectOption() {
+  const childObj = { a: 1 }
+  const objWithRefsToSameObj = {
+    foo: {
+      bar: childObj,
+      baz: childObj,
+    },
+  }
+
+  const jcs = new JsonClassSerializer
+  
+  const jsonWithRefsToSameObj = jcs.serializeToJson(objWithRefsToSameObj)
+  assertStrictEquals(jsonWithRefsToSameObj, '{"foo":{"bar":{"a":1},"baz":{"a":1}}}')
+  const deserializedWithRefsToSameObj = jcs.deserializeFromJson(jsonWithRefsToSameObj)
+  assertSimilarInstances(deserializedWithRefsToSameObj, objWithRefsToSameObj)
+  assertNotStrictEquals(deserializedWithRefsToSameObj.foo.bar, deserializedWithRefsToSameObj.foo.baz)
+
+  const objWithCircularRef = { a: 1, b: { c: {} } } as any
+  objWithCircularRef.b.c.d = objWithCircularRef.b
+  assertThrows(() => {
+    jcs.serializeToJson(objWithCircularRef)
+  })
+})
+
 Deno.test(function serializeCircularDependencies() {
   class Person {
     @jsonProperty(Person)
@@ -552,11 +576,13 @@ Deno.test(function serializeCircularDependencies() {
     new Person({ parent }),
   ]
 
-  const jcs = new JsonClassSerializer
+  const jcs = new JsonClassSerializer({
+    circularDependencyReferencePropertyName: '#ref',
+  })
   const json = jcs.serializeToJson(parent)
   const deserialized = jcs.deserializeFromJson(json, Person)
   assertSimilarInstances(deserialized, parent)
-  assertEquals(deserialized.children[0].parent, deserialized)
+  assertStrictEquals(deserialized.children[0].parent, deserialized)
 })
 
 Deno.test(function serializeCircularDependenciesInCollections() {
@@ -574,16 +600,18 @@ Deno.test(function serializeCircularDependenciesInCollections() {
   obj.map.set(obj, obj)
   obj.set.add(obj)
 
-  const jcs = new JsonClassSerializer
+  const jcs = new JsonClassSerializer({
+    circularDependencyReferencePropertyName: '#ref',
+  })
   const json = jcs.serializeToJson(obj)
-  assertEquals(json, '{"arr":[{"#ref":[]}],"map":[[{"#ref":[]},{"#ref":[]}]],"set":[{"#ref":[]}]}')
+  assertStrictEquals(json, '{"arr":[{"#ref":[]}],"map":[[{"#ref":[]},{"#ref":[]}]],"set":[{"#ref":[]}]}')
 
   const deserialized = jcs.deserializeFromJson(json, Foo)
   assertSimilarInstances(deserialized, obj)
-  assertEquals(deserialized.arr[0], deserialized)
-  assertEquals(deserialized.map.entries().next().value![0], deserialized)
-  assertEquals(deserialized.map.entries().next().value![1], deserialized)
-  assertEquals(Array.from(deserialized.set)[0], deserialized)
+  assertStrictEquals(deserialized.arr[0], deserialized)
+  assertStrictEquals(deserialized.map.entries().next().value![0], deserialized)
+  assertStrictEquals(deserialized.map.entries().next().value![1], deserialized)
+  assertStrictEquals(Array.from(deserialized.set)[0], deserialized)
 })
 
 Deno.test(function serializeTemporalTypes() {

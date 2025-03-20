@@ -133,7 +133,7 @@ export interface JsonClassSerializerOptions {
 	prettyPrint: boolean | string | number;
 
 	/**
-	 * Property name to use for serializing / deserializing circular dependency references. If null, circular dependencies will not be treated specially. Default: '#ref'
+	 * Property name to use for serializing / deserializing circular dependency references. If null, circular dependencies will not be treated specially. Default: null, recommendation: '#ref'
 	 * @example
 	 * ```typescript
 	 * class Person {
@@ -162,7 +162,7 @@ export interface JsonClassSerializerOptions {
 	 * // json: '{"name":"John","parent":null,"children":[{"name":"Peter","parent":{"#ref":["rootPerson"]},"children":[]}]}'
 	 * ```
 	 */
-	circularDependencyReferencePropertyName: string;
+	circularDependencyReferencePropertyName: string | null;
 }
 
 export interface EffectiveJsonClassSerializerOptions extends JsonClassSerializerOptions {
