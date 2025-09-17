@@ -1,19 +1,31 @@
 // deno-lint-ignore no-unused-vars
-import type { JsonClassSerializer } from "./json-class-serializer.ts"; // used for JsDoc
+import type { JsonClassSerializer } from './json-class-serializer.ts' // used for JsDoc
 
-const primitiveFactoryFns = [String, Number, Boolean, Date, BigInt, ArrayBuffer, Uint8Array, DataView] as const
+const primitiveFactoryFns = [
+	String,
+	Number,
+	Boolean,
+	Date,
+	BigInt,
+	ArrayBuffer,
+	Uint8Array,
+	DataView,
+] as const
 export type Ctor = abstract new (...args: any[]) => any
 export type Thunk<T> = () => T
 export type MaybeThunk<T> = T | Thunk<T>
-export type CtorOrThunk = MaybeThunk<Ctor> | typeof primitiveFactoryFns[number]
-export type EntryOrKeyValue = [string, any] | { key: string, value: any }
-export type Deserialized<Input, T extends Ctor> = Input extends InstanceType<T>
-	? Input
-	: Input extends Array<infer U>
-		? U extends InstanceType<T>
-			? Input
-			: InstanceType<T>[]
-		: InstanceType<T>
+export type CtorOrThunk =
+	| MaybeThunk<Ctor>
+	| (typeof primitiveFactoryFns)[number]
+export type EntryOrKeyValue = [string, any] | { key: string; value: any }
+export type Deserialized<Input, T extends Ctor> =
+	Input extends InstanceType<T>
+		? Input
+		: Input extends Array<infer U>
+			? U extends InstanceType<T>
+				? Input
+				: InstanceType<T>[]
+			: InstanceType<T>
 
 export type PropertyType = 'class' | 'array' | 'map' | 'set' | 'any'
 export type PropertyOrMapKey = PropertyKey | [number, number] // tuple for map key/value pairs
@@ -43,19 +55,22 @@ export interface JsonClassOptions {
 export type JsonProperty = {
 	options: JsonPropertyOptions
 } & (
-	{
-		type: 'class'
-		valueCtorOrThunk?: CtorOrThunk
-	} |	{
-		type: 'array' | 'set'
-		valueCtorOrThunk?: CtorOrThunk
-	} | {
-		type: 'map'
-		keyCtorOrThunk?: CtorOrThunk
-		valueCtorOrThunk?: CtorOrThunk
-	} | {
-		type: 'any'
-	}
+	| {
+			type: 'class'
+			valueCtorOrThunk?: CtorOrThunk
+	  }
+	| {
+			type: 'array' | 'set'
+			valueCtorOrThunk?: CtorOrThunk
+	  }
+	| {
+			type: 'map'
+			keyCtorOrThunk?: CtorOrThunk
+			valueCtorOrThunk?: CtorOrThunk
+	  }
+	| {
+			type: 'any'
+	  }
 )
 
 export interface JsonClassData {
@@ -72,57 +87,67 @@ export interface JsonClassSerializerOptions {
 	/**
 	 * Property to write class name to in serialized JSON (e.g. `'#type'` to produce `'{"#type":"Person",...}'. Default: '#type'`).
 	 */
-	serializationPropertyName: string;
-	
+	serializationPropertyName: string
+
 	/**
 	 * Function to resolve the class (or its name) for serialization. Only used if the class to be used for serialization is not known from the context or the ctor (constructor) input property of {@link JsonClassSerializer.deserializeFromJson} / {@link JsonClassSerializer.deserializeFromObject}. Default: undefined
 	 * @param obj - The object being serialized.
 	 * @param options - The effective options for the serializer.
 	 * @returns The class itself or the class name as a string.
 	 */
-	serializationClassResolver: ((obj: any, options: EffectiveJsonClassSerializerOptions) => Ctor | string) | undefined;
-	
+	serializationClassResolver:
+		| ((
+				obj: any,
+				options: EffectiveJsonClassSerializerOptions,
+		  ) => Ctor | string)
+		| undefined
+
 	/**
 	 * Function to resolve the class (or its name) for deserialization. By default, it uses the value of {@link JsonClassSerializerOptions.serializationPropertyName | options.serializationPropertyName} as a key in the object to be deserialized.
-	 * 
+	 *
 	 * @param obj - The object being deserialized.
 	 * @param options - The effective options for the serializer.
 	 * @returns The class itself or the class name as a string.
 	 */
-	deserializationClassResolver: ((obj: any, options: EffectiveJsonClassSerializerOptions) => Ctor | string) | undefined;
-	
+	deserializationClassResolver:
+		| ((
+				obj: any,
+				options: EffectiveJsonClassSerializerOptions,
+		  ) => Ctor | string)
+		| undefined
+
 	/**
 	 * Whether to use the global class registry (all classes that were annotate with @jsonClass) to resolve class names. Default: true
 	 */
-	useGlobalClassRegistry: boolean;
+	useGlobalClassRegistry: boolean
 
-	/** 
+	/**
 	 * Additional classes to consider when looking up a type by name (Record with class names as keys and constructor functions as values). This is evaluated before the global class registry. Default: {}
 	 */
-	additionalClassesToConsider: MaybeThunk<Record<string, Ctor>>;
-	
+	additionalClassesToConsider: MaybeThunk<Record<string, Ctor>>
+
 	/**
 	 * Whether to fail if the type resolution using {@link JsonClassSerializerOptions.deserializationClassResolver | options.deserializationClassResolver} fails during deserialization. Default: true
 	 */
-	failIfTypeResolutionFails: boolean;
+	failIfTypeResolutionFails: boolean
 
 	/**
-	 * Whether to fail if the root class is not found during deserialization. Default: false 
+	 * Whether to fail if the root class is not found during deserialization. Default: false
 	 */
-	failIfRootClassNotFound: boolean;
+	failIfRootClassNotFound: boolean
 
 	/**
 	 * Whether to fail if any plain objects are found during deserialization. Default: false
 	 */
-	failIfPlainObjectsFound: boolean;
+	failIfPlainObjectsFound: boolean
 
 	/**
 	 * Strategy for serializing maps.
 	 * - `'arrayOfEntries'` (default): Serialize maps as an array of entries ([["key1","value1"],["key2","value2"]]).
 	 * - `'arrayOfKeyValueObjects'`: Serialize maps as an array of key-value objects ([{"key":"key1"},{"value":"value1"},{"key":"key2"},{"value":"value2"}]).
 	 */
-	mapSerializationStrategy: 'arrayOfEntries' | 'arrayOfKeyValueObjects';
-	
+	mapSerializationStrategy: 'arrayOfEntries' | 'arrayOfKeyValueObjects'
+
 	/**
 	 * Whether to pretty-print the serialized JSON.
 	 * - `true`: Pretty-print using tabs for indentation.
@@ -130,7 +155,7 @@ export interface JsonClassSerializerOptions {
 	 * - `string`: Pretty-print using the specified string as indentation.
 	 * - `number`: Pretty-print using the specified number of spaces for indentation.
 	 */
-	prettyPrint: boolean | string | number;
+	prettyPrint: boolean | string | number
 
 	/**
 	 * Property name to use for serializing / deserializing circular dependency references. If null, circular dependencies will not be treated specially. Default: null, recommendation: '#ref'
@@ -141,18 +166,18 @@ export interface JsonClassSerializerOptions {
 	 *   public name: string,
 	 *   @jsonProperty(() => Person)
 	 *   public parent: Person | null = null
-	 *   @jsonArrayProperty(() => Person) 
+	 *   @jsonArrayProperty(() => Person)
 	 *   children: Person[] = []
-	 * 
+	 *
 	 *   constructor(init: Partial<Person>) {
 	 *     Object.assign(this, init)
 	 *   }
 	 * }
-	 * 
+	 *
 	 * const serializer = new JsonClassSerializer({
 	 *   circularDependencyReferencePropertyName: '#ref'
 	 * });
-	 * 
+	 *
 	 * const parent = new Person({ name: 'John' })
 	 * parent.children = [new Person({ name: 'Peter', parent })]
 	 * const obj = {
@@ -162,22 +187,23 @@ export interface JsonClassSerializerOptions {
 	 * // json: '{"name":"John","parent":null,"children":[{"name":"Peter","parent":{"#ref":["rootPerson"]},"children":[]}]}'
 	 * ```
 	 */
-	circularDependencyReferencePropertyName: string | null;
+	circularDependencyReferencePropertyName: string | null
 }
 
-export interface EffectiveJsonClassSerializerOptions extends JsonClassSerializerOptions {
+export interface EffectiveJsonClassSerializerOptions
+	extends JsonClassSerializerOptions {
 	/**
 	 * Function to resolve the class name for serialization. Default: `ctor => ctor.name`.
 	 * {link JsonClassSerializer.defaultOptions.classNameResolver} needs to be set before any classes annotated with {@link jsonClass} are loaded, if you desire to implement a custom name resolver.
 	 * @param ctor - The class (constructor).
 	 * @returns The class name as a string.
 	 */
-	classNameResolver: (ctor: Ctor) => string;
+	classNameResolver: (ctor: Ctor) => string
 }
 
 export function isThunk<T>(value: MaybeThunk<T>): value is Thunk<T> {
-	if(typeof value !== 'function') return false
-	if(primitiveFactoryFns.includes(value as any)) return false
+	if (typeof value !== 'function') return false
+	if (primitiveFactoryFns.includes(value as any)) return false
 	return !value.prototype // prototype is undefined for arrow functions; treat these as thunks
 }
 
@@ -185,10 +211,19 @@ export function resolveThunk<T>(value: MaybeThunk<T>): T {
 	return isThunk(value) ? value() : value
 }
 
-export function propertyHasKeyCtor(property: JsonProperty): property is JsonProperty & { type: 'map' } {
+export function propertyHasKeyCtor(
+	property: JsonProperty,
+): property is JsonProperty & { type: 'map' } {
 	return property.type == 'map'
 }
 
-export function propertyHasValueCtor(property: JsonProperty): property is JsonProperty & { type: 'class' | 'array' | 'set' | 'map' } {
-	return property.type == 'class' || property.type == 'array' || property.type == 'set' || property.type == 'map'
+export function propertyHasValueCtor(
+	property: JsonProperty,
+): property is JsonProperty & { type: 'class' | 'array' | 'set' | 'map' } {
+	return (
+		property.type == 'class' ||
+		property.type == 'array' ||
+		property.type == 'set' ||
+		property.type == 'map'
+	)
 }

@@ -1,8 +1,22 @@
-import { JsonClassSerializer } from "./mod.ts";
-import type { CtorOrThunk, JsonClassData, JsonPropertyOptions, JsonProperty, MaybeThunk, JsonClassOptions, AnyType } from "./types.ts";
-import { resolveThunk } from "./types.ts";
-import { arrayBufferToBase64, base64ToArrayBuffer, base64ToDataView, base64ToUint8Array, dataViewToBase64, uint8ArrayToBase64 } from "./utils.ts";
-
+import { JsonClassSerializer } from './mod.ts'
+import type {
+	CtorOrThunk,
+	JsonClassData,
+	JsonPropertyOptions,
+	JsonProperty,
+	MaybeThunk,
+	JsonClassOptions,
+	AnyType,
+} from './types.ts'
+import { resolveThunk } from './types.ts'
+import {
+	arrayBufferToBase64,
+	base64ToArrayBuffer,
+	base64ToDataView,
+	base64ToUint8Array,
+	dataViewToBase64,
+	uint8ArrayToBase64,
+} from './utils.ts'
 
 export const classDataByCtor = new WeakMap<any, JsonClassData>([
 	[String, { options: { deserializer: (value: string) => value } }],
@@ -10,28 +24,78 @@ export const classDataByCtor = new WeakMap<any, JsonClassData>([
 	[Boolean, { options: { deserializer: (value: boolean) => value } }],
 	[Date, { options: { deserializer: (value: string) => new Date(value) } }],
 	[BigInt, { options: { deserializer: (value: string) => BigInt(value) } }],
-	[ArrayBuffer, { options: { serializer: arrayBufferToBase64, deserializer: base64ToArrayBuffer } }],
-	[Uint8Array, { options: { serializer: uint8ArrayToBase64, deserializer: base64ToUint8Array } }],
-	[DataView, { options: { serializer: dataViewToBase64, deserializer: base64ToDataView } }],
+	[
+		ArrayBuffer,
+		{
+			options: {
+				serializer: arrayBufferToBase64,
+				deserializer: base64ToArrayBuffer,
+			},
+		},
+	],
+	[
+		Uint8Array,
+		{
+			options: {
+				serializer: uint8ArrayToBase64,
+				deserializer: base64ToUint8Array,
+			},
+		},
+	],
+	[
+		DataView,
+		{
+			options: { serializer: dataViewToBase64, deserializer: base64ToDataView },
+		},
+	],
 ])
 const { Temporal } = globalThis as any
-if(Temporal) {
+if (Temporal) {
 	// Temporal types are only available in environments that support Temporal
-	classDataByCtor.set(Temporal.Instant, { options: { deserializer: (value: string) => Temporal.Instant.from(value) } })
-	classDataByCtor.set(Temporal.PlainDate, { options: { deserializer: (value: string) => Temporal.PlainDate.from(value) } })
-	classDataByCtor.set(Temporal.PlainTime, { options: { deserializer: (value: string) => Temporal.PlainTime.from(value) } })
-	classDataByCtor.set(Temporal.PlainDateTime, { options: { deserializer: (value: string) => Temporal.PlainDateTime.from(value) } })
-	classDataByCtor.set(Temporal.PlainYearMonth, { options: { deserializer: (value: string) => Temporal.PlainYearMonth.from(value) } })
-	classDataByCtor.set(Temporal.PlainMonthDay, { options: { deserializer: (value: string) => Temporal.PlainMonthDay.from(value) } })
-	classDataByCtor.set(Temporal.ZonedDateTime, { options: { deserializer: (value: string) => Temporal.ZonedDateTime.from(value) } })
-	classDataByCtor.set(Temporal.Duration, { options: { deserializer: (value: string) => Temporal.Duration.from(value) } })
+	classDataByCtor.set(Temporal.Instant, {
+		options: { deserializer: (value: string) => Temporal.Instant.from(value) },
+	})
+	classDataByCtor.set(Temporal.PlainDate, {
+		options: {
+			deserializer: (value: string) => Temporal.PlainDate.from(value),
+		},
+	})
+	classDataByCtor.set(Temporal.PlainTime, {
+		options: {
+			deserializer: (value: string) => Temporal.PlainTime.from(value),
+		},
+	})
+	classDataByCtor.set(Temporal.PlainDateTime, {
+		options: {
+			deserializer: (value: string) => Temporal.PlainDateTime.from(value),
+		},
+	})
+	classDataByCtor.set(Temporal.PlainYearMonth, {
+		options: {
+			deserializer: (value: string) => Temporal.PlainYearMonth.from(value),
+		},
+	})
+	classDataByCtor.set(Temporal.PlainMonthDay, {
+		options: {
+			deserializer: (value: string) => Temporal.PlainMonthDay.from(value),
+		},
+	})
+	classDataByCtor.set(Temporal.ZonedDateTime, {
+		options: {
+			deserializer: (value: string) => Temporal.ZonedDateTime.from(value),
+		},
+	})
+	classDataByCtor.set(Temporal.Duration, {
+		options: { deserializer: (value: string) => Temporal.Duration.from(value) },
+	})
 }
 
 /**
  * Symbol that allows access to the global class registry (on `globalThis`) and class-specific metadata (on the class function).
  */
 export const ClassDataSymbol = Symbol.for('JsonClassData')
-export const classDataByName = (globalThis as any)[ClassDataSymbol] ?? new Map<string, JsonClassData>() // ensure only one instance of the map exists even if JsonClassSerializer is imported multiple times in separate chunks
+export const classDataByName =
+	(globalThis as any)[ClassDataSymbol] ?? new Map<string, JsonClassData>() // ensure only one instance of the map exists even if JsonClassSerializer is imported multiple times in separate chunks
 ;(globalThis as any)[ClassDataSymbol] = classDataByName
 
 /**
@@ -39,20 +103,25 @@ export const classDataByName = (globalThis as any)[ClassDataSymbol] ?? new Map<s
  * @param name The name of the class. If not provided, the class name will be used (explicitly provide a name if you use mangling during code minimization).
  * @param options Options for the class.
  */
-export function jsonClass(name?: MaybeThunk<string | null>, options: JsonClassOptions = {}): ClassDecorator {
+export function jsonClass(
+	name?: MaybeThunk<string | null>,
+	options: JsonClassOptions = {},
+): ClassDecorator {
 	return (ctor: any) => {
 		const data = ensureJsonClassData(ctor)
-		data.name = name !== null
-			? resolveThunk(name) || JsonClassSerializer.defaultOptions.classNameResolver(ctor)
-			: undefined
+		data.name =
+			name !== null
+				? resolveThunk(name) ||
+					JsonClassSerializer.defaultOptions.classNameResolver(ctor)
+				: undefined
 		data.ctor = ctor
 		data.options = options
 		ctor.prototype[ClassDataSymbol] = data
-		if(data.name) {
+		if (data.name) {
 			classDataByName.set(data.name, data)
 		}
 
-		ctor.prototype.toJSON = function() {
+		ctor.prototype.toJSON = function () {
 			const jsc = JsonClassSerializer.defaultInstance
 			return jsc.serializeToObject(this)
 		}
@@ -65,12 +134,15 @@ export function jsonClass(name?: MaybeThunk<string | null>, options: JsonClassOp
  * @param ctorOrThunk The constructor of the property type, or an arrow function that returns the constructor of the property type. Must be provided unless the property type is string/number/boolean.
  * @param options Options for the property.
  */
-export function jsonProperty(ctorOrThunk?: CtorOrThunk, options: JsonPropertyOptions = {}): PropertyDecorator {
-	return function(target: any, propertyKey: string | symbol) {
+export function jsonProperty(
+	ctorOrThunk?: CtorOrThunk,
+	options: JsonPropertyOptions = {},
+): PropertyDecorator {
+	return function (target: any, propertyKey: string | symbol) {
 		setPropertyInternal(target.constructor, propertyKey, {
 			type: 'class',
 			options,
-			valueCtorOrThunk: ctorOrThunk
+			valueCtorOrThunk: ctorOrThunk,
 		})
 	}
 }
@@ -80,12 +152,15 @@ export function jsonProperty(ctorOrThunk?: CtorOrThunk, options: JsonPropertyOpt
  * @param ctorOrThunk The constructor of the array item type, or an arrow function that returns the constructor of the array item type. Must always be set; if item typ is string/number/boolean, provide String/Number/Boolean.
  * @param options Options for the property.
  */
-export function jsonArrayProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
+export function jsonArrayProperty(
+	ctorOrThunk: CtorOrThunk | typeof AnyType,
+	options: JsonPropertyOptions = {},
+): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
 			type: 'array',
 			options,
-			valueCtorOrThunk: ctorOrThunk
+			valueCtorOrThunk: ctorOrThunk,
 		})
 	}
 }
@@ -96,13 +171,17 @@ export function jsonArrayProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, opt
  * @param valueCtorOrThunk The constructor of the map value type, or an arrow function that returns the constructor of the map value type. Must always be set; if value type is string/number/boolean, provide String/Number/Boolean.
  * @param options Options for the property.
  */
-export function jsonMapProperty(keyCtorOrThunk: CtorOrThunk | typeof AnyType, valueCtorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
+export function jsonMapProperty(
+	keyCtorOrThunk: CtorOrThunk | typeof AnyType,
+	valueCtorOrThunk: CtorOrThunk | typeof AnyType,
+	options: JsonPropertyOptions = {},
+): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
 			type: 'map',
 			options,
 			keyCtorOrThunk,
-			valueCtorOrThunk
+			valueCtorOrThunk,
 		})
 	}
 }
@@ -112,12 +191,15 @@ export function jsonMapProperty(keyCtorOrThunk: CtorOrThunk | typeof AnyType, va
  * @param ctorOrThunk The constructor of the set item type, or an arrow function that returns the constructor of the set item type. Must always be set; if item type is string/number/boolean, provide String/Number/Boolean.
  * @param options Options for the property.
  */
-export function jsonSetProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, options: JsonPropertyOptions = {}): PropertyDecorator {
+export function jsonSetProperty(
+	ctorOrThunk: CtorOrThunk | typeof AnyType,
+	options: JsonPropertyOptions = {},
+): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
 			type: 'set',
 			options,
-			valueCtorOrThunk: ctorOrThunk
+			valueCtorOrThunk: ctorOrThunk,
 		})
 	}
 }
@@ -126,7 +208,9 @@ export function jsonSetProperty(ctorOrThunk: CtorOrThunk | typeof AnyType, optio
  * Decorator to register a property for serialization/deserialization as any type (same as `@jsonProperty(AnyType)`).
  * @param options Options for the property.
  */
-export function jsonAnyProperty(options: JsonPropertyOptions = {}): PropertyDecorator {
+export function jsonAnyProperty(
+	options: JsonPropertyOptions = {},
+): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
 			type: 'any',
@@ -144,7 +228,11 @@ function ensureJsonClassData(ctor: any): JsonClassData {
 	return data
 }
 
-function setPropertyInternal(ctor: object, propertyKey: PropertyKey, propertyData: JsonProperty) {
+function setPropertyInternal(
+	ctor: object,
+	propertyKey: PropertyKey,
+	propertyData: JsonProperty,
+) {
 	const data = ensureJsonClassData(ctor)
 	if (!data.properties) data.properties = new Map()
 	data.properties.set(propertyKey, propertyData)
