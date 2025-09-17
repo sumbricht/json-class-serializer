@@ -623,6 +623,37 @@ Deno.test(function deserializeSubclasses() {
 	assertSimilarInstances(deserializedContainer, container)
 })
 
+Deno.test(function deserializeFromObjectContainingBinaryData() {
+	class Foo {
+		@jsonProperty(Uint8Array)
+		uint8Array?: Uint8Array
+		@jsonProperty(ArrayBuffer)
+		arrayBuffer?: ArrayBuffer
+		@jsonProperty(DataView)
+		dataView?: DataView
+
+		constructor(init: Foo) {
+			Object.assign(this, init)
+		}
+	}
+	const uint8Array = new Uint8Array(
+		new Array(256 * 4 + 1).fill(0).map((_, idx) => idx % 256),
+	)
+	const arrayBuffer = uint8Array.buffer
+	const dataView = new DataView(arrayBuffer)
+
+	const objToDeserialize = {
+		uint8Array,
+		arrayBuffer,
+		dataView,
+	}
+	const classObj = new Foo(objToDeserialize)
+
+	const jcs = new JsonClassSerializer()
+	const deserialized = jcs.deserializeFromObject(objToDeserialize, Foo)
+	assertSimilarInstances(deserialized, classObj)
+})
+
 Deno.test(function serializeObjectPropertyWithoutConstructor() {
 	class Foo {
 		@jsonProperty()

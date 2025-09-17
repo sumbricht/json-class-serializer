@@ -1,61 +1,61 @@
 {
-  "name": "@sumbricht/json-class-serializer",
-  "description": "Serialize/deserialize JS classes to/from JSON strings and plain objects",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "dist/mod.cjs",
-  "module": "dist/mod.js",
-  "types": "dist/mod.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/mod.d.ts",
-      "require": "./dist/mod.cjs",
-      "import": "./dist/mod.js"
-    }
-  },
-  "files": [
-    "./src",
-    "./dist"
-  ],
-  "scripts": {
-    "build": "tsup",
-    "clean": "rm -rf dist"
-  },
-  "tsup": {
-    "entryPoints": [
-      "src/mod.ts"
-    ],
-    "format": [
-      "esm",
-      "cjs"
-    ],
-    "dts": true,
-    "clean": true,
-    "sourcemap": true,
-    "minify": false
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/sumbricht/json-class-serializer.git"
-  },
-  "keywords": [
-    "typedjson",
-    "json",
-    "serializer",
-    "deserializer",
-    "class",
-    "serialize",
-    "deserialize"
-  ],
-  "author": "Simon Umbricht",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/sumbricht/json-class-serializer/issues"
-  },
-  "homepage": "https://github.com/sumbricht/json-class-serializer#readme",
-  "devDependencies": {
-    "prettier": "^3.6.2",
-    "tsup": "^8.4.0",
-    "typescript": "^5.7.3"
-  }
+	"name": "@sumbricht/json-class-serializer",
+	"description": "Serialize/deserialize JS classes to/from JSON strings and plain objects",
+	"version": "1.0.1",
+	"type": "module",
+	"main": "dist/mod.cjs",
+	"module": "dist/mod.js",
+	"types": "dist/mod.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/mod.d.ts",
+			"require": "./dist/mod.cjs",
+			"import": "./dist/mod.js"
+		}
+	},
+	"files": [
+		"./src",
+		"./dist"
+	],
+	"scripts": {
+		"build": "tsup",
+		"clean": "rm -rf dist"
+	},
+	"tsup": {
+		"entryPoints": [
+			"src/mod.ts"
+		],
+		"format": [
+			"esm",
+			"cjs"
+		],
+		"dts": true,
+		"clean": true,
+		"sourcemap": true,
+		"minify": false
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/sumbricht/json-class-serializer.git"
+	},
+	"keywords": [
+		"typedjson",
+		"json",
+		"serializer",
+		"deserializer",
+		"class",
+		"serialize",
+		"deserialize"
+	],
+	"author": "Simon Umbricht",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/sumbricht/json-class-serializer/issues"
+	},
+	"homepage": "https://github.com/sumbricht/json-class-serializer#readme",
+	"devDependencies": {
+		"prettier": "^3.6.2",
+		"tsup": "^8.4.0",
+		"typescript": "^5.7.3"
+	}
 }

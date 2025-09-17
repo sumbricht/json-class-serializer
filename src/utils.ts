@@ -91,15 +91,18 @@ export function uint8ArrayToBase64(array: Uint8Array): string {
 }
 
 // conversion of base64 to buffers
-export function base64ToDataView(base64: string): DataView {
+export function base64ToDataView(base64: string | DataView): DataView {
+	if (base64 instanceof DataView) return base64
 	return new DataView(base64ToArrayBuffer(base64))
 }
 
-export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+export function base64ToArrayBuffer(base64: string | ArrayBuffer): ArrayBuffer {
+	if (base64 instanceof ArrayBuffer) return base64
 	return base64ToUint8Array(base64).buffer as ArrayBuffer
 }
 
-export function base64ToUint8Array(base64: string): Uint8Array {
+export function base64ToUint8Array(base64: string | Uint8Array): Uint8Array {
+	if (base64 instanceof Uint8Array) return base64
 	const binaryStr = atob(base64)
 	const array = Uint8Array.from(binaryStr, (char) => char.charCodeAt(0))
 	return array
