@@ -648,6 +648,10 @@ export class JsonClassSerializer {
 			const refObj = getInObjectFromPath(obj, refPath)
 			const targetPath =
 				refObj[this.options.circularDependencyReferencePropertyName]
+			if (!Array.isArray(targetPath)) {
+				// refObj is no longer a marker for circular references; most likely it was replaced another way by the consuming code, therefore ignore
+				continue
+			}
 			const targetObj = getInObjectFromPath(obj, targetPath)
 			setInObjectFromPath(obj, refPath, targetObj)
 		}
