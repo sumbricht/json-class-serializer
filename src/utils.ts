@@ -1,5 +1,7 @@
 import { classDataByCtor } from './metadata.ts'
-import { PropertyOrMapKey } from './types.ts'
+import type { PropertyOrMapKey } from './types.ts'
+
+export const DeleteSymbol = Symbol('Delete')
 
 /**
  * Gets the name of a class as registered with the `@jsonClass` decorator.
@@ -68,7 +70,11 @@ export function setInObjectFromPath(
 			members[property as number] = value
 			setInObjectFromPath(obj, path.slice(0, -1), new Set(members))
 		} else {
-			Reflect.set(parent, property, value)
+			if (value === DeleteSymbol) {
+				Reflect.deleteProperty(parent, property)
+			} else {
+				Reflect.set(parent, property, value)
+			}
 		}
 	}
 }

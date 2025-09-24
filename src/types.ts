@@ -188,6 +188,15 @@ export interface JsonClassSerializerOptions {
 	 * ```
 	 */
 	circularDependencyReferencePropertyName: string | null
+
+	/**
+	 * Property name to use for marking the root object during serialization / deserialization. This is only needed for handing circular dependencies. If null, circular dependency levels will not be treated specially. Default: null, recommendation: '#level'
+	 * Why this may be needed: Imagine JsonClassSerializer in the browser serializing an object and sending it to the server, which deserialized it.
+	 * A Person object might be serialized to `{"name":"John",children:[{"name":"Peter",parent:{"#ref":[]}}]}`.
+	 * The server might include middleware that might receive a request like { body: { input: <our Person object> } }. If the middleware deserializes the whole request object and not just request.body.input, person.children[0].parent will be the whole request object, not the original Person object.
+	 * To avoid this, we can mark the serialized root object with a property name and then remove it during deserialization.
+	 */
+	circularDependencyLevelPropertyName: string | null
 }
 
 export interface EffectiveJsonClassSerializerOptions

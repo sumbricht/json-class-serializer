@@ -754,6 +754,57 @@ Deno.test(function serializeCircularDependenciesInCollections() {
 	assertStrictEquals(Array.from(deserialized.set)[0], deserialized)
 })
 
+Deno.test(function serializeCircularDependenciesInCollectionsWithLevel() {
+	const bar = { bar: 1 }
+	const obj: any = { foo: bar }
+	obj.obj = obj
+
+	const jcs = new JsonClassSerializer({
+		circularDependencyReferencePropertyName: '#ref',
+		circularDependencyLevelPropertyName: '#level',
+	})
+	const json = jcs.serializeToJson(obj)
+	assertStrictEquals(json, '{"foo":{"bar":1},"obj":{"#ref":[]},"#level":0}')
+
+	const deserialized = jcs.deserializeFromJson(json)
+	assertStrictEquals(deserialized.obj, deserialized)
+	assertSimilarInstances(deserialized, obj)
+
+	const wrapperSerialized = `{"wrapper":${json}}`
+	const wrapperDeserialized = jcs.deserializeFromJson(wrapperSerialized)
+	assertSimilarInstances(wrapperDeserialized, { wrapper: obj })
+	assertStrictEquals(
+		wrapperDeserialized.wrapper.obj,
+		wrapperDeserialized.wrapper,
+	)
+})
+
+Deno.test(
+	function serializeCircularDependenciesInCollectionsWithLevelInArray() {
+		const bar = { bar: 1 }
+		const obj1: any = { foo1: bar }
+		const obj2: any = { foo2: bar }
+		obj1.obj = obj1
+		obj2.obj = obj2
+		const array = [obj1, obj2]
+
+		const jcs = new JsonClassSerializer({
+			circularDependencyReferencePropertyName: '#ref',
+			circularDependencyLevelPropertyName: '#level',
+		})
+		const json = jcs.serializeToJson(array)
+		assertStrictEquals(
+			json,
+			'[{"foo1":{"bar":1},"obj":{"#ref":[0]},"#level":1},{"foo2":{"#ref":[0,"foo1"]},"obj":{"#ref":[1]},"#level":1}]',
+		)
+
+		const deserialized = jcs.deserializeFromJson(json)
+		assertStrictEquals(deserialized[0].obj, deserialized[0])
+		assertStrictEquals(deserialized[1].obj, deserialized[1])
+		assertSimilarInstances(deserialized, array)
+	},
+)
+
 Deno.test(function serializeTemporalTypes() {
 	class DatesAndTimes {
 		@jsonProperty(Date)
