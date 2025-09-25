@@ -654,6 +654,42 @@ Deno.test(function deserializeFromObjectContainingBinaryData() {
 	assertSimilarInstances(deserialized, classObj)
 })
 
+Deno.test(function deserializeFromObjWithCircularDependencies() {
+	class Person {
+		@jsonProperty(() => Person)
+		parent?: Person
+		@jsonArrayProperty(() => Person)
+		children: Person[] = []
+
+		constructor(init: Partial<Person>) {
+			Object.assign(this, init)
+		}
+	}
+	const parent = new Person({})
+	const child = new Person({ parent })
+	parent.children = [child]
+
+	const jcs = new JsonClassSerializer({
+		circularDependencyReferencePropertyName: '#ref',
+	})
+
+	const deserializedFromInst = jcs.deserializeFromObject(parent, Person)
+	assertStrictEquals(
+		deserializedFromInst.children[0].parent,
+		deserializedFromInst,
+	)
+	assertSimilarInstances(deserializedFromInst, parent)
+
+	const objVersion = { children: [{ parent: {} }] }
+	objVersion.children[0].parent = objVersion
+	const deserializedFromObj = jcs.deserializeFromObject(objVersion, Person)
+	assertStrictEquals(
+		deserializedFromObj.children[0].parent,
+		deserializedFromObj,
+	)
+	assertSimilarInstances(deserializedFromObj, parent)
+})
+
 Deno.test(function serializeObjectPropertyWithoutConstructor() {
 	class Foo {
 		@jsonProperty()

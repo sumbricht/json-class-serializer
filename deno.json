@@ -1,6 +1,6 @@
 {
 	"name": "@sumbricht/json-class-serializer",
-	"version": "1.0.4",
+	"version": "1.0.7",
 	"license": "MIT",
 	"exports": {
 		".": "./src/mod.ts"

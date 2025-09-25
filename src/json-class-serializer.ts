@@ -71,6 +71,10 @@ export class JsonClassSerializer {
 	private encounteredReferencePathsInDeserialization: PropertyOrMapKey[][] = [] // to replace circular references after deserialization; tuple of two PropertyKeys for map key/value pairs
 	private encounteredRootPathsInDeserialization: PropertyOrMapKey[][] = [] // to replace circular references after deserialization; tuple of two PropertyKeys for map key/value pairs
 	private encounteredLevelPathsInDeserialization: PropertyOrMapKey[][] = []
+	private encounteredInputObjectPathsInDeserialization = new Map<
+		any,
+		PropertyOrMapKey[]
+	>()
 	private rootSerializationObjRef: WeakRef<any> | undefined
 
 	/**
@@ -123,6 +127,7 @@ export class JsonClassSerializer {
 		this.encounteredReferencePathsInDeserialization = []
 		this.encounteredRootPathsInDeserialization = []
 		this.encounteredLevelPathsInDeserialization = []
+		this.encounteredInputObjectPathsInDeserialization = new Map()
 		const result = this.deserializeFromObjectInternal(
 			value,
 			[],
@@ -421,12 +426,19 @@ export class JsonClassSerializer {
 		valueClassData: JsonClassData | undefined,
 		failIfClassNotFound: boolean,
 	): any {
-		if (
-			this.options.circularDependencyReferencePropertyName &&
-			value?.[this.options.circularDependencyReferencePropertyName]
-		) {
-			this.encounteredReferencePathsInDeserialization.push(path)
-			return value // will be replaced later when deserialization is almost done
+		if (this.options.circularDependencyReferencePropertyName) {
+			if (value?.[this.options.circularDependencyReferencePropertyName]) {
+				this.encounteredReferencePathsInDeserialization.push(path)
+				return value // will be replaced later when deserialization is almost done
+			} else if (this.encounteredInputObjectPathsInDeserialization.has(value)) {
+				this.encounteredReferencePathsInDeserialization.push(path)
+				const valueEncounteredAtPath =
+					this.encounteredInputObjectPathsInDeserialization.get(value)
+				return {
+					[this.options.circularDependencyReferencePropertyName]:
+						valueEncounteredAtPath,
+				} // will be replaced later when deserialization is almost done
+			}
 		}
 
 		if (
@@ -446,28 +458,33 @@ export class JsonClassSerializer {
 		if (value == null) return value
 
 		const type = typeof value
+		if (typeof value === 'object') {
+			this.encounteredInputObjectPathsInDeserialization.set(value, path)
+		}
+
+		let newValue = value
 		if (
 			!valueClassData &&
 			(type == 'string' || type === 'number' || type === 'boolean')
-		)
-			return value
-
-		if (Array.isArray(value))
-			return this.deserializeArray(
+		) {
+			newValue = value
+		} else if (Array.isArray(value)) {
+			newValue = this.deserializeArray(
 				value,
 				path,
 				valueClassData,
 				failIfClassNotFound,
 			)
-
-		if (valueClassData || type === 'object')
-			return this.deserializeObject(
+		} else if (valueClassData || type === 'object') {
+			newValue = this.deserializeObject(
 				value,
 				path,
 				valueClassData,
 				failIfClassNotFound,
 			)
-		return value
+		}
+
+		return newValue
 	}
 
 	private getClassDataByName(name: string): JsonClassData | undefined {
@@ -725,6 +742,10 @@ export class JsonClassSerializer {
 			const refObj = getInObjectFromPath(obj, refPath)
 			let targetPath =
 				refObj[this.options.circularDependencyReferencePropertyName]
+			if (!Array.isArray(targetPath)) {
+				// refObj is no longer a marker for circular references; most likely it was replaced another way by the consuming code, therefore ignore
+				continue
+			}
 
 			for (let i = refPath.length - 1; i > 0; i--) {
 				const pathToPotentialRoot = refPath.slice(0, i)
@@ -734,10 +755,6 @@ export class JsonClassSerializer {
 				}
 			}
 
-			if (!Array.isArray(targetPath)) {
-				// refObj is no longer a marker for circular references; most likely it was replaced another way by the consuming code, therefore ignore
-				continue
-			}
 			const targetObj = getInObjectFromPath(obj, targetPath)
 			setInObjectFromPath(obj, refPath, targetObj)
 		}
