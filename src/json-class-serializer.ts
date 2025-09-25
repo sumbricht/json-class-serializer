@@ -597,7 +597,16 @@ export class JsonClassSerializer {
 							propValue = propData.options.deserializer(propValue)
 						}
 						let newValue = propValue
-						if (newValue != null) {
+						if (
+							typeof propValue === 'object' &&
+							this.options.circularDependencyReferencePropertyName &&
+							propValue?.[this.options.circularDependencyReferencePropertyName!]
+						) {
+							// marker for circular reference; do not modify, just mark for later replacement
+							this.encounteredReferencePathsInDeserialization.push(
+								path.concat(key),
+							)
+						} else if (newValue != null) {
 							switch (propData.type) {
 								case 'class': {
 									const valueClassData = this.getClassDataByCtor(
