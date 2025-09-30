@@ -23,7 +23,7 @@
       "dependencies": [
         "npm:prettier@^3.6.2",
         "npm:tsup@^8.5.0",
-        "npm:typescript@^5.7.3"
+        "npm:typescript@^5.9.2"
       ]
     }
   }

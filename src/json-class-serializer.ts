@@ -187,12 +187,6 @@ export class JsonClassSerializer {
 		const type = typeof value
 		if (type == 'string' || type === 'number' || type === 'boolean')
 			return value
-		if (
-			this.options.circularDependencyReferencePropertyName &&
-			value?.[this.options.circularDependencyReferencePropertyName]
-		) {
-			debugger
-		}
 		if (this.encounteredObjectPathsInSerialization.has(value)) {
 			if (this.options.circularDependencyReferencePropertyName) {
 				// object has been encountered before; return reference to its path
@@ -224,6 +218,12 @@ export class JsonClassSerializer {
 		// typeof value === 'object'
 		this.encounteredObjectPathsInSerialization.set(value, path)
 
+		if (
+			this.options.circularDependencyLevelPropertyName &&
+			value[this.options.circularDependencyLevelPropertyName] != undefined
+		) {
+			return value // already serialized
+		}
 		if (Array.isArray(value))
 			return this.serializeArray(
 				value,
