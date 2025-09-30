@@ -159,7 +159,7 @@ export class JsonClassSerializer {
 	 * @param value The class instance to serialize.
 	 * @returns The serialized plain object.
 	 */
-	serializeToObject<T = unknown>(value: any): T {
+	serializeToObject<T>(value: T): T {
 		this.encounteredObjectPathsInSerialization = new WeakMap()
 		if (value && typeof value == 'object') {
 			this.rootSerializationObjRef = new WeakRef(value)
@@ -187,13 +187,19 @@ export class JsonClassSerializer {
 		const type = typeof value
 		if (type == 'string' || type === 'number' || type === 'boolean')
 			return value
-
+		if (
+			this.options.circularDependencyReferencePropertyName &&
+			value?.[this.options.circularDependencyReferencePropertyName]
+		) {
+			debugger
+		}
 		if (this.encounteredObjectPathsInSerialization.has(value)) {
 			if (this.options.circularDependencyReferencePropertyName) {
 				// object has been encountered before; return reference to its path
 				const refPath = this.encounteredObjectPathsInSerialization.get(value)
 				return {
-					[this.options.circularDependencyReferencePropertyName]: refPath,
+					[this.options.circularDependencyReferencePropertyName]:
+						refPath?.slice(),
 				}
 			} else {
 				// object has been encountered before, but circular reference references are not activated.

@@ -3,6 +3,7 @@ import {
 	assertStrictEquals,
 	assertNotStrictEquals,
 	assertThrows,
+  assertEquals,
 } from '@std/assert'
 import {
 	classDataByCtor,
@@ -756,6 +757,36 @@ Deno.test(function serializeCircularDependencies() {
 	const deserialized = jcs.deserializeFromJson(json, Person)
 	assertSimilarInstances(deserialized, parent)
 	assertStrictEquals(deserialized.children[0].parent, deserialized)
+})
+
+Deno.test(function doubleSserializeCircularDependencies() {
+	// Ensure that serializing the object twice does not produce unexpected results such as {#ref:{#ref:[...]}}
+	class Person {
+		@jsonProperty(Person)
+		parent?: Person
+		@jsonArrayProperty(Person)
+		children: Person[] = []
+
+		constructor(init?: Partial<Person>) {
+			if (init) Object.assign(this, init)
+		}
+	}
+
+	const parent = new Person()
+	parent.children = [new Person({ parent }), new Person({ parent })]
+
+	const jcs = new JsonClassSerializer({
+		circularDependencyReferencePropertyName: '#ref',
+	})
+	const serializedToObjOnce = jcs.serializeToObject(parent)
+	
+	assertEquals(serializedToObjOnce.children[0].parent, { '#ref': [] } as any)
+	assertEquals(serializedToObjOnce.children[1].parent, { '#ref': [] } as any)
+	assertNotStrictEquals(serializedToObjOnce.children[0].parent, serializedToObjOnce.children[1].parent)
+	assertNotStrictEquals((serializedToObjOnce.children[0].parent as any)['#ref'], (serializedToObjOnce.children[1].parent as any)['#ref'])
+	
+	const serializedToObjThenToJson = jcs.serializeToJson(serializedToObjOnce)
+	assertEquals(serializedToObjThenToJson, '{"children":[{"parent":{"#ref":[]},"children":[]},{"parent":{"#ref":[]},"children":[]}]}')
 })
 
 Deno.test(function serializeCircularDependenciesInCollections() {
