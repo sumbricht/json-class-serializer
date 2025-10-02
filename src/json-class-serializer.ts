@@ -214,6 +214,7 @@ export class JsonClassSerializer {
 		}
 
 		if (type == 'bigint') return value.toString()
+		if (type == 'symbol') return undefined
 
 		// typeof value === 'object'
 		this.encounteredObjectPathsInSerialization.set(value, path)
