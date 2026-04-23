@@ -3,7 +3,7 @@ import {
 	assertStrictEquals,
 	assertNotStrictEquals,
 	assertThrows,
-  assertEquals,
+	assertEquals,
 } from '@std/assert'
 import {
 	classDataByCtor,
@@ -16,7 +16,7 @@ import {
 } from '../src/metadata.ts'
 import { JsonClassSerializer } from '../src/json-class-serializer.ts'
 import { assertSimilarInstances } from './test-util.ts'
-import { getJsonClassName } from '../src/utils.ts'
+import { getJsonClassName, uint8ArrayToBase64 } from '../src/utils.ts'
 import { AnyType } from '../src/types.ts'
 
 @jsonClass()
@@ -131,18 +131,21 @@ const createTestPerson = () =>
 		],
 	})
 
-Deno.test(function serializeObjectWithPrimitives() {
+Deno.test(function serializePlainObjectWithPrimitives() {
 	const jcs = new JsonClassSerializer()
-	const json = jcs.serializeToJson({
+	const obj = {
 		a: 1,
 		b: '2',
 		c: true,
 		d: new Date('2000-01-01'),
-	})
+	}
+	const json = jcs.serializeToJson(obj)
 	assertStrictEquals(
 		json,
-		'{"a":1,"b":"2","c":true,"d":"2000-01-01T00:00:00.000Z"}',
+		'{"a":1,"b":"2","c":true,"d":{"#date":"2000-01-01T00:00:00.000Z"}}',
 	)
+	const deserialized = jcs.deserializeFromJson(json)
+	assertSimilarInstances(deserialized, obj)
 })
 
 Deno.test(function serializeClassProperties() {
@@ -151,7 +154,7 @@ Deno.test(function serializeClassProperties() {
 	const json = jcs.serializeToJson(person)
 	assertStrictEquals(
 		json,
-		'{"#type":"Person","__type":"Person","name":"John","dob":"2000-01-01T00:00:00.000Z","numberOfChildren":2,"isMarried":true,"address":{"city":"New York"},"accountBalance":"9007199254740991000","nationalities":[{"country":"Switzerland"},{"country":"USA"}],"nicknames":["Johnny","John"],"children":[["Alice",{"__type":"Person","name":"Alice","dob":"2010-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[],"accounts":[]}],["Bob",{"__type":"Person","name":"Bob","dob":"2012-01-01T00:00:00.000Z","numberOfChildren":0,"isMarried":false,"accountBalance":"0","nationalities":[],"nicknames":[],"children":[],"accounts":[]}]],"accounts":[[0,"USD 1000.25"],[1,"EUR 2000"]]}',
+		'{"#type":"Person","__type":"Person","name":"John","dob":{"#date":"2000-01-01T00:00:00.000Z"},"numberOfChildren":2,"isMarried":true,"address":{"city":"New York"},"accountBalance":{"#bigInt":"9007199254740991000"},"nationalities":[{"country":"Switzerland"},{"country":"USA"}],"nicknames":["Johnny","John"],"children":[["Alice",{"__type":"Person","name":"Alice","dob":{"#date":"2010-01-01T00:00:00.000Z"},"numberOfChildren":0,"isMarried":false,"accountBalance":{"#bigInt":"0"},"nationalities":[],"nicknames":[],"children":[],"accounts":[]}],["Bob",{"__type":"Person","name":"Bob","dob":{"#date":"2012-01-01T00:00:00.000Z"},"numberOfChildren":0,"isMarried":false,"accountBalance":{"#bigInt":"0"},"nationalities":[],"nicknames":[],"children":[],"accounts":[]}]],"accounts":[[0,"USD 1000.25"],[1,"EUR 2000"]]}',
 	)
 })
 
@@ -533,22 +536,52 @@ Deno.test(function serializeBinaryData() {
 	)
 	const arrayBuffer = uint8Array.buffer
 	const dataView = new DataView(arrayBuffer)
+	const expectedBase64 = uint8ArrayToBase64(uint8Array)
 
 	const jsonUint8 = jcs.serializeToJson(uint8Array)
 	const jsonArrayBuffer = jcs.serializeToJson(arrayBuffer)
 	const jsonDataView = jcs.serializeToJson(dataView)
-	assertStrictEquals(jsonArrayBuffer, jsonUint8)
-	assertStrictEquals(jsonDataView, jsonUint8)
+	assertStrictEquals(jsonUint8, `{"#uint8Array":"${expectedBase64}"}`)
+	assertStrictEquals(jsonArrayBuffer, `{"#arrayBuffer":"${expectedBase64}"}`)
+	assertStrictEquals(jsonDataView, `{"#dataView":"${expectedBase64}"}`)
 
-	const deserializedArrayBuffer = jcs.deserializeFromJson(
+	const deserializedArrayBuffer_withHint = jcs.deserializeFromJson(
 		jsonArrayBuffer,
 		ArrayBuffer,
 	)
-	const deserializedUint8 = jcs.deserializeFromJson(jsonUint8, Uint8Array)
-	const deserializedDataView = jcs.deserializeFromJson(jsonDataView, DataView)
-	assertSimilarInstances(deserializedArrayBuffer, arrayBuffer)
-	assertSimilarInstances(deserializedUint8, uint8Array)
-	assertSimilarInstances(deserializedDataView, dataView)
+	const deserializedUint8_withHint = jcs.deserializeFromJson(
+		jsonUint8,
+		Uint8Array,
+	)
+	const deserializedDataView_withHint = jcs.deserializeFromJson(
+		jsonDataView,
+		DataView,
+	)
+	assertSimilarInstances(deserializedArrayBuffer_withHint, arrayBuffer)
+	assertSimilarInstances(deserializedUint8_withHint, uint8Array)
+	assertSimilarInstances(deserializedDataView_withHint, dataView)
+
+	const deserializedArrayBuffer_withoutHint =
+		jcs.deserializeFromJson(jsonArrayBuffer)
+	const deserializedUint8_withoutHint = jcs.deserializeFromJson(jsonUint8)
+	const deserializedDataView_withoutHint = jcs.deserializeFromJson(jsonDataView)
+	assertSimilarInstances(deserializedArrayBuffer_withoutHint, arrayBuffer)
+	assertSimilarInstances(deserializedUint8_withoutHint, uint8Array)
+	assertSimilarInstances(deserializedDataView_withoutHint, dataView)
+
+	if ('Buffer' in globalThis) {
+		const Buffer = (globalThis as any).Buffer
+		const buffer = Buffer.from(uint8Array)
+		const jsonBuffer = jcs.serializeToJson(buffer)
+		assertStrictEquals(jsonBuffer, `{"#buffer":"${expectedBase64}"}`)
+		const deserializedBuffer_withHint = jcs.deserializeFromJson(
+			jsonBuffer,
+			Buffer,
+		)
+		assertSimilarInstances(deserializedBuffer_withHint, buffer)
+		const deserializedBuffer_withoutHint = jcs.deserializeFromJson(jsonBuffer)
+		assertSimilarInstances(deserializedBuffer_withoutHint, buffer)
+	}
 })
 
 Deno.test(function serializeClassWithBinaryData() {
@@ -779,14 +812,23 @@ Deno.test(function doubleSserializeCircularDependencies() {
 		circularDependencyReferencePropertyName: '#ref',
 	})
 	const serializedToObjOnce = jcs.serializeToObject(parent)
-	
+
 	assertEquals(serializedToObjOnce.children[0].parent, { '#ref': [] } as any)
 	assertEquals(serializedToObjOnce.children[1].parent, { '#ref': [] } as any)
-	assertNotStrictEquals(serializedToObjOnce.children[0].parent, serializedToObjOnce.children[1].parent)
-	assertNotStrictEquals((serializedToObjOnce.children[0].parent as any)['#ref'], (serializedToObjOnce.children[1].parent as any)['#ref'])
-	
+	assertNotStrictEquals(
+		serializedToObjOnce.children[0].parent,
+		serializedToObjOnce.children[1].parent,
+	)
+	assertNotStrictEquals(
+		(serializedToObjOnce.children[0].parent as any)['#ref'],
+		(serializedToObjOnce.children[1].parent as any)['#ref'],
+	)
+
 	const serializedToObjThenToJson = jcs.serializeToJson(serializedToObjOnce)
-	assertEquals(serializedToObjThenToJson, '{"children":[{"parent":{"#ref":[]},"children":[]},{"parent":{"#ref":[]},"children":[]}]}')
+	assertEquals(
+		serializedToObjThenToJson,
+		'{"children":[{"parent":{"#ref":[]},"children":[]},{"parent":{"#ref":[]},"children":[]}]}',
+	)
 })
 
 Deno.test(function serializeCircularDependenciesInCollections() {
@@ -898,7 +940,7 @@ Deno.test(function serializeTemporalTypes() {
 		}
 	}
 
-	const datesAndTimes = new DatesAndTimes({
+	const dateAndTimesRaw = {
 		date: new Date('2000-01-02 12:34:56'),
 		instant: Temporal.Instant.from('2000-01-02T12:34:56Z'),
 		zonedDateTime: Temporal.ZonedDateTime.from('2000-01-02T12:34:56Z[UTC]'),
@@ -908,10 +950,29 @@ Deno.test(function serializeTemporalTypes() {
 		plainYearMonth: Temporal.PlainYearMonth.from('2000-01'),
 		plainMonthDay: Temporal.PlainMonthDay.from('01-02'),
 		duration: Temporal.Duration.from('PT12H34M56S'),
-	})
+	}
+	const datesAndTimes = new DatesAndTimes(dateAndTimesRaw)
 
 	const jcs = new JsonClassSerializer()
 	const json = jcs.serializeToJson(datesAndTimes)
 	const deserialized = jcs.deserializeFromJson(json, DatesAndTimes)
 	assertSimilarInstances(deserialized, datesAndTimes)
+
+	const jsonRaw = jcs.serializeToJson(dateAndTimesRaw)
+	const deserializedRaw = jcs.deserializeFromJson(jsonRaw)
+	assertSimilarInstances(deserializedRaw, dateAndTimesRaw)
+})
+
+Deno.test(function serializeSymbol() {
+	const anonymousSymbol = Symbol('anonymous')
+	const namedSymbol = Symbol.for('named')
+	const jcs = new JsonClassSerializer()
+
+	assertThrows(() => {
+		jcs.serializeToJson(anonymousSymbol)
+	})
+	const jsonNamed = jcs.serializeToJson(namedSymbol)
+	assertStrictEquals(jsonNamed, '{"#symbol":"named"}')
+	const deserializedNamed = jcs.deserializeFromJson(jsonNamed)
+	assertStrictEquals(deserializedNamed, namedSymbol)
 })

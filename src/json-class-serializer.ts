@@ -19,6 +19,7 @@ import {
 	classDataByCtor,
 	classDataByName,
 	ClassDataSymbol,
+	deserializionClassByMagicPropertyName,
 } from './metadata.ts'
 import {
 	getInObjectFromPath,
@@ -213,11 +214,9 @@ export class JsonClassSerializer {
 			}
 		}
 
-		if (type == 'bigint') return value.toString()
-		if (type == 'symbol') return undefined
-
-		// typeof value === 'object'
-		this.encounteredObjectPathsInSerialization.set(value, path)
+		if (typeof value === 'object') {
+			this.encounteredObjectPathsInSerialization.set(value, path)
+		}
 
 		if (
 			this.options.circularDependencyLevelPropertyName &&
@@ -246,6 +245,12 @@ export class JsonClassSerializer {
 				hasLevelBeenApplied,
 				owningPropertyData,
 			)
+		const ctor = value.constructor
+		const ctorData = this.getClassDataByCtor(ctor)
+		if (ctorData?.options?.serializer) {
+			value = ctorData.options.serializer(value)
+			return value
+		}
 		if (typeof value.toJSON == 'function' && !value.toJSON[ClassDataSymbol]) {
 			// check for toJSON[ClassDataSymbol] to avoid infinite recursion
 			return this.serializeToObjectInternal(
@@ -483,6 +488,21 @@ export class JsonClassSerializer {
 				failIfClassNotFound,
 			)
 		} else if (valueClassData || type === 'object') {
+			if (!valueClassData) {
+				const keys = Object.keys(value)
+				if (keys.length == 1) {
+					// Object could be a marker object like { '#date': '2000-01-01T00:00:00.000Z' } that needs to be deserialized to a Date
+					const deserializationClass =
+						deserializionClassByMagicPropertyName.get(keys[0])
+					if (deserializationClass) {
+						valueClassData = this.getClassDataByCtor(deserializationClass)
+						if (valueClassData?.options?.deserializer) {
+							value = valueClassData.options.deserializer(value)
+							return value
+						}
+					}
+				}
+			}
 			newValue = this.deserializeObject(
 				value,
 				path,

@@ -56,6 +56,10 @@ export type JsonProperty = {
 	options: JsonPropertyOptions
 } & (
 	| {
+			type: 'enum'
+			values: (string | number | boolean)[]
+	  }
+	| {
 			type: 'class'
 			valueCtorOrThunk?: CtorOrThunk
 	  }

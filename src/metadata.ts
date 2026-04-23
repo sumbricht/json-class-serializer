@@ -22,14 +22,49 @@ export const classDataByCtor = new WeakMap<any, JsonClassData>([
 	[String, { options: { deserializer: (value: string) => value } }],
 	[Number, { options: { deserializer: (value: number) => value } }],
 	[Boolean, { options: { deserializer: (value: boolean) => value } }],
-	[Date, { options: { deserializer: (value: string) => new Date(value) } }],
-	[BigInt, { options: { deserializer: (value: string) => BigInt(value) } }],
+	[
+		Date,
+		{
+			options: {
+				serializer: (value: Date) =>
+					value ? { '#date': value.toISOString() } : value,
+				deserializer: (value: { '#date': string } | string) => {
+					if (!value) return value
+					if (typeof value === 'string') return new Date(value)
+					return new Date(value['#date'])
+				},
+			},
+		},
+	],
+	[
+		BigInt,
+		{
+			options: {
+				serializer: (value: bigint) =>
+					value !== undefined ? { '#bigInt': value.toString() } : value,
+				deserializer: (value: { '#bigInt': string } | bigint) => {
+					if (!value) return value
+					if (typeof value === 'bigint') return value
+					return BigInt(value['#bigInt'])
+				},
+			},
+		},
+	],
 	[
 		ArrayBuffer,
 		{
 			options: {
-				serializer: arrayBufferToBase64,
-				deserializer: base64ToArrayBuffer,
+				serializer: (arrayBuffer: ArrayBuffer) =>
+					arrayBuffer
+						? {
+								'#arrayBuffer': arrayBufferToBase64(arrayBuffer),
+							}
+						: arrayBuffer,
+				deserializer: (value: { '#arrayBuffer': string } | ArrayBuffer) => {
+					if (!value) return value
+					if (value instanceof ArrayBuffer) return value
+					return base64ToArrayBuffer(value['#arrayBuffer'])
+				},
 			},
 		},
 	],
@@ -37,57 +72,211 @@ export const classDataByCtor = new WeakMap<any, JsonClassData>([
 		Uint8Array,
 		{
 			options: {
-				serializer: uint8ArrayToBase64,
-				deserializer: base64ToUint8Array,
+				serializer: (uint8Array: Uint8Array) =>
+					uint8Array
+						? {
+								'#uint8Array': uint8ArrayToBase64(uint8Array),
+							}
+						: uint8Array,
+				deserializer: (value: { '#uint8Array': string } | Uint8Array) => {
+					if (!value) return value
+					if (value instanceof Uint8Array) return value
+					return base64ToUint8Array(value['#uint8Array'])
+				},
 			},
 		},
 	],
 	[
 		DataView,
 		{
-			options: { serializer: dataViewToBase64, deserializer: base64ToDataView },
+			options: {
+				serializer: (dataView: DataView) =>
+					dataView
+						? {
+								'#dataView': dataViewToBase64(dataView),
+							}
+						: dataView,
+				deserializer: (value: { '#dataView': string } | DataView) => {
+					if (!value) return value
+					if (value instanceof DataView) return value
+					return base64ToDataView(value['#dataView'])
+				},
+			},
+		},
+	],
+	[
+		Symbol,
+		{
+			options: {
+				serializer: (value: symbol) => {
+					if (!value) return value
+					const description = value.description!
+					const newSymbol = Symbol.for(description)
+					if (newSymbol !== value) {
+						throw new Error(
+							`Cannot serialize Symbol ${description} as it is not a unique symbol`,
+						)
+					}
+					return { '#symbol': description }
+				},
+				deserializer: (value: { '#symbol': string } | symbol) => {
+					if (!value) return value
+					if (typeof value === 'symbol') return value
+					const description = value['#symbol']
+					return Symbol.for(description)
+				},
+			},
 		},
 	],
 ])
-const { Temporal } = globalThis as any
+export const deserializionClassByMagicPropertyName = new Map<string, any>([
+	['#date', Date],
+	['#arrayBuffer', ArrayBuffer],
+	['#uint8Array', Uint8Array],
+	['#dataView', DataView],
+	['#symbol', Symbol],
+])
+const { Buffer, Temporal } = globalThis as any
+if (Buffer) {
+	classDataByCtor.set(Buffer, {
+		options: {
+			serializer: (buffer: typeof Buffer) => ({
+				'#buffer': buffer.toString('base64'),
+			}),
+			deserializer: (value: { '#buffer': string } | typeof Buffer) => {
+				if (value instanceof Buffer) return value
+				return Buffer.from(value['#buffer'], 'base64')
+			},
+		},
+	})
+	deserializionClassByMagicPropertyName.set('#buffer', Buffer)
+}
 if (Temporal) {
 	// Temporal types are only available in environments that support Temporal
 	classDataByCtor.set(Temporal.Instant, {
-		options: { deserializer: (value: string) => Temporal.Instant.from(value) },
+		options: {
+			serializer: (value: any) => ({
+				'#instant': value.toString(),
+			}),
+			deserializer: (value: { '#instant': string } | any) => {
+				if (value instanceof Temporal.Instant) return value
+				return Temporal.Instant.from(
+					(value as { '#instant': string })['#instant'],
+				)
+			},
+		},
 	})
 	classDataByCtor.set(Temporal.PlainDate, {
 		options: {
-			deserializer: (value: string) => Temporal.PlainDate.from(value),
+			serializer: (value: any) => ({
+				'#plainDate': value.toString(),
+			}),
+			deserializer: (value: { '#plainDate': string } | any) => {
+				if (value instanceof Temporal.PlainDate) return value
+				return Temporal.PlainDate.from(
+					(value as { '#plainDate': string })['#plainDate'],
+				)
+			},
 		},
 	})
 	classDataByCtor.set(Temporal.PlainTime, {
 		options: {
-			deserializer: (value: string) => Temporal.PlainTime.from(value),
+			serializer: (value: any) => ({
+				'#plainTime': value.toString(),
+			}),
+			deserializer: (value: { '#plainTime': string } | any) => {
+				if (value instanceof Temporal.PlainTime) return value
+				return Temporal.PlainTime.from(
+					(value as { '#plainTime': string })['#plainTime'],
+				)
+			},
 		},
 	})
 	classDataByCtor.set(Temporal.PlainDateTime, {
 		options: {
-			deserializer: (value: string) => Temporal.PlainDateTime.from(value),
+			serializer: (value: any) => ({
+				'#plainDateTime': value.toString(),
+			}),
+			deserializer: (value: { '#plainDateTime': string } | any) => {
+				if (value instanceof Temporal.PlainDateTime) return value
+				return Temporal.PlainDateTime.from(
+					(value as { '#plainDateTime': string })['#plainDateTime'],
+				)
+			},
 		},
 	})
 	classDataByCtor.set(Temporal.PlainYearMonth, {
 		options: {
-			deserializer: (value: string) => Temporal.PlainYearMonth.from(value),
+			serializer: (value: any) => ({
+				'#plainYearMonth': value.toString(),
+			}),
+			deserializer: (value: { '#plainYearMonth': string } | any) => {
+				if (value instanceof Temporal.PlainYearMonth) return value
+				return Temporal.PlainYearMonth.from(
+					(value as { '#plainYearMonth': string })['#plainYearMonth'],
+				)
+			},
 		},
 	})
 	classDataByCtor.set(Temporal.PlainMonthDay, {
 		options: {
-			deserializer: (value: string) => Temporal.PlainMonthDay.from(value),
+			serializer: (value: any) => ({
+				'#plainMonthDay': value.toString(),
+			}),
+			deserializer: (value: { '#plainMonthDay': string } | any) => {
+				if (value instanceof Temporal.PlainMonthDay) return value
+				return Temporal.PlainMonthDay.from(
+					(value as { '#plainMonthDay': string })['#plainMonthDay'],
+				)
+			},
 		},
 	})
 	classDataByCtor.set(Temporal.ZonedDateTime, {
 		options: {
-			deserializer: (value: string) => Temporal.ZonedDateTime.from(value),
+			serializer: (value: any) => ({
+				'#zonedDateTime': value.toString(),
+			}),
+			deserializer: (value: { '#zonedDateTime': string } | any) => {
+				if (value instanceof Temporal.ZonedDateTime) return value
+				return Temporal.ZonedDateTime.from(
+					(value as { '#zonedDateTime': string })['#zonedDateTime'],
+				)
+			},
 		},
 	})
 	classDataByCtor.set(Temporal.Duration, {
-		options: { deserializer: (value: string) => Temporal.Duration.from(value) },
+		options: {
+			serializer: (value: any) => ({
+				'#duration': value.toString(),
+			}),
+			deserializer: (value: { '#duration': string } | any) => {
+				if (value instanceof Temporal.Duration) return value
+				return Temporal.Duration.from(
+					(value as { '#duration': string })['#duration'],
+				)
+			},
+		},
 	})
+	deserializionClassByMagicPropertyName.set('#instant', Temporal.Instant)
+	deserializionClassByMagicPropertyName.set('#plainDate', Temporal.PlainDate)
+	deserializionClassByMagicPropertyName.set('#plainTime', Temporal.PlainTime)
+	deserializionClassByMagicPropertyName.set(
+		'#plainDateTime',
+		Temporal.PlainDateTime,
+	)
+	deserializionClassByMagicPropertyName.set(
+		'#plainYearMonth',
+		Temporal.PlainYearMonth,
+	)
+	deserializionClassByMagicPropertyName.set(
+		'#plainMonthDay',
+		Temporal.PlainMonthDay,
+	)
+	deserializionClassByMagicPropertyName.set(
+		'#zonedDateTime',
+		Temporal.ZonedDateTime,
+	)
+	deserializionClassByMagicPropertyName.set('#duration', Temporal.Duration)
 }
 
 /**
@@ -143,6 +332,32 @@ export function jsonProperty(
 			type: 'class',
 			options,
 			valueCtorOrThunk: ctorOrThunk,
+		})
+	}
+}
+
+export function jsonLiteralProperty(
+	value: string | number | boolean,
+	options: JsonPropertyOptions = {},
+): PropertyDecorator {
+	return (target, propertyKey) => {
+		setPropertyInternal(target.constructor, propertyKey, {
+			type: 'enum',
+			values: [value],
+			options,
+		})
+	}
+}
+
+export function jsonEnumProperty(
+	values: (string | number | boolean)[],
+	options: JsonPropertyOptions = {},
+): PropertyDecorator {
+	return (target, propertyKey) => {
+		setPropertyInternal(target.constructor, propertyKey, {
+			type: 'enum',
+			values,
+			options,
 		})
 	}
 }

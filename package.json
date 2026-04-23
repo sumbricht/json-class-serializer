@@ -19,6 +19,7 @@
 	],
 	"scripts": {
 		"build": "tsup",
+		"test": "deno test --unstable-temporal",
 		"clean": "rm -rf dist"
 	},
 	"tsup": {
