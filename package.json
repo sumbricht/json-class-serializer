@@ -11,6 +11,11 @@
 			"types": "./dist/mod.d.ts",
 			"require": "./dist/mod.cjs",
 			"import": "./dist/mod.js"
+		},
+		"./json-schema": {
+			"types": "./dist/json-schema/index.d.ts",
+			"require": "./dist/json-schema/index.cjs",
+			"import": "./dist/json-schema/index.js"
 		}
 	},
 	"files": [
@@ -54,6 +59,9 @@
 		"url": "https://github.com/sumbricht/json-class-serializer/issues"
 	},
 	"homepage": "https://github.com/sumbricht/json-class-serializer#readme",
+	"peerDependencies": {
+		"typebox": "*"
+	},
 	"devDependencies": {
 		"prettier": "^3.6.2",
 		"tsup": "^8.5.0",
