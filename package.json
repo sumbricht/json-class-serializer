@@ -1,7 +1,7 @@
 {
 	"name": "@sumbricht/json-class-serializer",
 	"description": "Serialize/deserialize JS classes to/from JSON strings and plain objects",
-	"version": "1.0.11",
+	"version": "1.1.0",
 	"type": "module",
 	"main": "dist/mod.cjs",
 	"module": "dist/mod.js",
