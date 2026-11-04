@@ -349,6 +349,83 @@ const deserialized = jcs.deserializeFromJson(json)
 // deserialized.foo !== deserialized.bar; references don't point to same object anymore
 ```
 
+## JSON Schema generation
+
+`generateSchema` (from `@sumbricht/json-class-serializer/json-schema`) describes the JSON of your classes as a plain [JSON Schema draft 2020-12](https://json-schema.org/draft/2020-12) document, e.g. to validate files or to tell an AI agent how to write them. No schema library is needed to use the result.
+
+```typescript
+import { generateSchema } from '@sumbricht/json-class-serializer/json-schema'
+
+const { schema, warnings } = generateSchema([Drawing], {
+	serializer: jcs, // default: JsonClassSerializer.defaultInstance
+})
+```
+
+**What the schema admits:** exactly the JSON that `deserializeFromObject` turns into instances without throwing and without silently dropping data. So:
+
+- Properties are optional (a missing property keeps the class initializer's value) and may be `null`. Use `required: true` / `nullable: false` in the property options to tighten this.
+- Unknown properties are rejected (`additionalProperties: false`), since the deserializer would drop them.
+- Dates are accepted as `{"#date": "..."}` or as an ISO string; maps as arrays of `[key, value]` entries or of `{ key, value }` objects. Sets are arrays, with `uniqueItems` for primitive items.
+- The JSON depends on the serializer's options (`serializationPropertyName`, `mapSerializationStrategy`, `circularDependencyLevelPropertyName`, `additionalClassesToConsider`, `useGlobalClassRegistry`), so pass the serializer you use. A custom `deserializationClassResolver` is not reflected: the discriminator is always `serializationPropertyName`.
+
+`required`, `nullable` and `abstract` are a declared contract for the schema only; the deserializer does not enforce them.
+
+**Structure:**
+
+- `$defs` has one entry per class, keyed by its registered name, with its own and inherited properties.
+- A position whose declared class has subclasses refers to `$defs["<name>.polymorphic"]`, which selects the class from the discriminator. Without a discriminator the value is the declared class itself, unless that class is marked `@jsonClass(name, { abstract: true })`; then the discriminator is required. Classes that should never appear in JSON themselves (also intermediate classes without a name) can be marked with `@jsonClass(null, { abstract: true })`.
+- The root of the schema accepts any of the root classes and their subclasses, and always requires the discriminator.
+- Defaults are sampled from the class initializers by instantiating each class twice without arguments; values that differ between the two instances (ids, timestamps) are left out.
+
+**Options for classes and properties** (all schema only):
+
+```typescript
+@jsonClass('Shape', {
+	abstract: true,
+	title: 'Shape',
+	description: 'A geometric shape',
+})
+abstract class Shape {
+	@jsonProperty(String, { required: true, description: 'Unique id' })
+	id: string = ''
+
+	@jsonEnumProperty(['red', 'green'], {
+		valueDescriptions: { red: 'Warm colour', green: 'Calm colour' },
+	})
+	color: 'red' | 'green' = 'red'
+
+	@jsonProperty(Number, {
+		nullable: false,
+		default: 1, // as it appears in JSON; overrides the sampled default
+		schema: (generated) => ({ ...generated, minimum: 0 }), // transform the generated schema
+	})
+	scale: number = 1
+}
+
+// a custom serializer's JSON cannot be derived from the properties, so describe it
+@jsonClass('Money', {
+	serializer: (money: Money) => `${money.amount} ${money.currency}`,
+	deserializer: (value: string) => Money.parse(value),
+	schema: { type: 'string', pattern: '^[0-9.]+ [A-Z]{3}$' }, // replace the generated schema
+})
+class Money {
+	/* ... */
+}
+```
+
+`warnings` lists everything the schema could not describe exactly (e.g. a custom serializer without `schema`); those parts accept any value. Pass `strict: true` to throw instead. Circular dependency references (`{"#ref": [...]}`) are rejected unless `allowCircularReferences: true` is passed.
+
+To generate other formats (e.g. a Markdown reference) from the same metadata, use `getClassMetadata(ctor)` and `listRegisteredClasses(serializer)`.
+
+## Changelog
+
+### 1.2.0
+
+- `generateSchema` is reworked and now importable from `@sumbricht/json-class-serializer/json-schema`. Its output shape changed: plain JSON Schema draft 2020-12 instead of TypeBox schemas, flattened inheritance instead of `allOf`, properties optional and nullable by default, discriminated subclasses, defaults and descriptions. Its signature changed to `generateSchema(roots, options)` and returns `{ schema, warnings }`. TypeBox is no longer a peer dependency.
+- New options: `abstract`, `title`, `description`, `examples`, `schema` on `@jsonClass`; `required`, `nullable`, `default`, `title`, `description`, `examples`, `schema` on property decorators; `valueDescriptions` on `@jsonEnumProperty`.
+- New exports: `getClassMetadata`, `listRegisteredClasses`, `jsonEnumProperty`, `jsonLiteralProperty`.
+- Fix: a property redeclared in a subclass now uses the subclass's decorator instead of the super class's when serializing and deserializing.
+
 ## Attribution
 
 This approach is heavily inspired by the great previous work by the creators of [TypedJSON](https://github.com/JohnWeisz/TypedJSON). TypedJSON unfortunately had not seen any updates for 4 years at the time of creating JsonClassSerializer and didn't work well under some more advanced circumstances (e.g. with binary data, with data crossing VM2 proxy boundaries, etc.).

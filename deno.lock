@@ -17,10 +17,14 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@std/assert@1"
+      "jsr:@std/assert@1",
+      "npm:ajv-formats@3.0.1",
+      "npm:ajv@8.17.1"
     ],
     "packageJson": {
       "dependencies": [
+        "npm:ajv-formats@^3.0.1",
+        "npm:ajv@^8.17.1",
         "npm:prettier@^3.6.2",
         "npm:tsup@^8.5.0",
         "npm:typescript@^5.9.2"

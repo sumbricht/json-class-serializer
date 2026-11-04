@@ -387,6 +387,35 @@ Deno.test(function classInstanceWithInheritance() {
 	assertSimilarInstances(deserialized, cat)
 })
 
+Deno.test(function subclassRedeclaresProperty() {
+	@jsonClass()
+	class Event {
+		@jsonProperty(String)
+		when: string | Date = 'soon'
+	}
+
+	@jsonClass()
+	class DatedEvent extends Event {
+		@jsonProperty()
+		title: string = ''
+		@jsonProperty(Date) // the subclass's metadata must win
+		override when: Date = new Date(0)
+	}
+
+	const event = new DatedEvent()
+	event.title = 'Launch'
+	event.when = new Date('2000-01-01T00:00:00.000Z')
+	const jcs = new JsonClassSerializer()
+	const json = jcs.serializeToJson(event)
+	assertStrictEquals(
+		json,
+		'{"#type":"DatedEvent","when":{"#date":"2000-01-01T00:00:00.000Z"},"title":"Launch"}',
+	)
+	const deserialized = jcs.deserializeFromJson(json)
+	assert(deserialized.when instanceof Date)
+	assertSimilarInstances(deserialized, event)
+})
+
 Deno.test(function onlyDeserializePropertiesInJson() {
 	const minimalPerson = new Person()
 	minimalPerson.name = 'John'

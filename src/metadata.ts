@@ -6,9 +6,11 @@ import type {
 	JsonProperty,
 	MaybeThunk,
 	JsonClassOptions,
-	AnyType,
+	JsonEnumPropertyOptions,
+	JsonSchemaOverride,
+	Ctor,
 } from './types.ts'
-import { resolveThunk } from './types.ts'
+import { AnyType, resolveThunk } from './types.ts'
 import {
 	arrayBufferToBase64,
 	base64ToArrayBuffer,
@@ -351,7 +353,7 @@ export function jsonLiteralProperty(
 
 export function jsonEnumProperty(
 	values: (string | number | boolean)[],
-	options: JsonPropertyOptions = {},
+	options: JsonEnumPropertyOptions = {},
 ): PropertyDecorator {
 	return (target, propertyKey) => {
 		setPropertyInternal(target.constructor, propertyKey, {
@@ -451,4 +453,195 @@ function setPropertyInternal(
 	const data = ensureJsonClassData(ctor)
 	if (!data.properties) data.properties = new Map()
 	data.properties.set(propertyKey, propertyData)
+}
+
+/**
+ * Gets all properties of a class, including inherited ones. Super class properties come first; a property redeclared in a subclass keeps its position but uses the subclass's metadata.
+ * Intermediate classes in the prototype chain without any metadata are skipped.
+ */
+export function getAllProperties(ctor: any): Map<PropertyKey, JsonProperty> {
+	const chain: any[] = []
+	for (
+		let c = ctor;
+		c && c !== Function.prototype;
+		c = Object.getPrototypeOf(c)
+	) {
+		chain.unshift(c)
+	}
+	const properties = new Map<PropertyKey, JsonProperty>()
+	for (const c of chain) {
+		for (const [key, property] of classDataByCtor.get(c)?.properties ?? []) {
+			properties.set(key, property)
+		}
+	}
+	return properties
+}
+
+/**
+ * Read-only description of a property registered with one of the `@json...Property` decorators.
+ */
+export interface PropertyMetadata {
+	readonly key: PropertyKey
+	readonly kind: 'class' | 'array' | 'set' | 'map' | 'enum' | 'any'
+	/** The class whose decorator registered the property. */
+	readonly declaringClass: Ctor
+	/** Declared class of the value (`class`), of the items (`array`, `set`) or of the map values (`map`). `AnyType` if any value is allowed. */
+	readonly declaredClass?: Ctor
+	/** Declared class of the map keys (`map` only). */
+	readonly keyClass?: Ctor
+	/** Allowed values (`enum` only; one value for `@jsonLiteralProperty`). */
+	readonly values?: readonly (string | number | boolean)[]
+	readonly valueDescriptions?: Readonly<Record<string, string>>
+	readonly required: boolean
+	readonly nullable: boolean
+	/** Whether the property has its own serializer or deserializer. */
+	readonly customSerialized: boolean
+	/** Explicit default from the property options, as it appears in serialized JSON. */
+	readonly default?: unknown
+	readonly title?: string
+	readonly description?: string
+	readonly examples?: readonly unknown[]
+	readonly schema?: JsonSchemaOverride
+}
+
+/**
+ * Read-only description of a class known to JsonClassSerializer.
+ */
+export interface ClassMetadata {
+	readonly ctor: Ctor
+	/** Registered name, i.e. the value of the discriminator. Undefined for classes that cannot be resolved by name. */
+	readonly name?: string
+	/** Nearest class in the prototype chain that has metadata. */
+	readonly parent?: Ctor
+	readonly abstract: boolean
+	/** Whether the class has a class-level serializer or deserializer, which defines its JSON instead of its properties. */
+	readonly customSerialized: boolean
+	readonly title?: string
+	readonly description?: string
+	readonly examples?: readonly unknown[]
+	readonly schema?: JsonSchemaOverride
+	/** Properties declared by this class itself. */
+	readonly ownProperties: readonly PropertyMetadata[]
+	/** All properties including inherited ones, in serialization order. */
+	readonly properties: readonly PropertyMetadata[]
+}
+
+/**
+ * Gets the metadata of a class, or undefined if no class in its prototype chain has any.
+ * @param ctor The class (constructor).
+ */
+export function getClassMetadata(ctor: Ctor): ClassMetadata | undefined {
+	return buildClassMetadata(ctor, classDataByCtor.get(ctor)?.name)
+}
+
+/**
+ * Lists all classes that a JsonClassSerializer can resolve by name: the global class registry (if `useGlobalClassRegistry` is set) and `additionalClassesToConsider`.
+ * A class registered under several names is listed once per name.
+ * @param serializer The serializer whose options to use. Default: `JsonClassSerializer.defaultInstance`
+ */
+export function listRegisteredClasses(
+	serializer: JsonClassSerializer = JsonClassSerializer.defaultInstance,
+): ClassMetadata[] {
+	const entries = new Map<string, Ctor>()
+	if (serializer.options.useGlobalClassRegistry) {
+		for (const [name, data] of classDataByName as Map<string, JsonClassData>) {
+			if (data.ctor) entries.set(name, data.ctor)
+		}
+	}
+	for (const [name, ctor] of Object.entries(
+		resolveThunk(serializer.options.additionalClassesToConsider),
+	)) {
+		if (!entries.has(name)) entries.set(name, ctor)
+	}
+	const result: ClassMetadata[] = []
+	for (const [name, ctor] of entries) {
+		const metadata = buildClassMetadata(ctor, name)
+		if (metadata) result.push(metadata)
+	}
+	return result
+}
+
+function buildClassMetadata(
+	ctor: Ctor,
+	name: string | undefined,
+): ClassMetadata | undefined {
+	const data = classDataByCtor.get(ctor)
+	let parent: Ctor | undefined
+	for (
+		let c = Object.getPrototypeOf(ctor);
+		c && c !== Function.prototype;
+		c = Object.getPrototypeOf(c)
+	) {
+		if (classDataByCtor.has(c)) {
+			parent = c
+			break
+		}
+	}
+	if (!data && !parent) return undefined
+
+	const declaringClassByProperty = new Map<JsonProperty, Ctor>()
+	for (
+		let c: any = ctor;
+		c && c !== Function.prototype;
+		c = Object.getPrototypeOf(c)
+	) {
+		for (const property of classDataByCtor.get(c)?.properties?.values() ?? []) {
+			declaringClassByProperty.set(property, c)
+		}
+	}
+	const toMetadata = ([key, property]: [PropertyKey, JsonProperty]) =>
+		buildPropertyMetadata(
+			key,
+			property,
+			declaringClassByProperty.get(property)!,
+		)
+	const options: JsonClassOptions = data?.options ?? {}
+	return Object.freeze({
+		ctor,
+		name,
+		parent,
+		abstract: !!options.abstract,
+		customSerialized: !!(options.serializer || options.deserializer),
+		title: options.title,
+		description: options.description,
+		examples: options.examples,
+		schema: options.schema,
+		ownProperties: Object.freeze([...(data?.properties ?? [])].map(toMetadata)),
+		properties: Object.freeze([...getAllProperties(ctor)].map(toMetadata)),
+	})
+}
+
+function buildPropertyMetadata(
+	key: PropertyKey,
+	property: JsonProperty,
+	declaringClass: Ctor,
+): PropertyMetadata {
+	const { options } = property
+	return Object.freeze({
+		key,
+		kind: property.type,
+		declaringClass,
+		declaredClass:
+			property.type == 'any'
+				? AnyType
+				: 'valueCtorOrThunk' in property
+					? (resolveThunk(property.valueCtorOrThunk) as Ctor | undefined)
+					: undefined,
+		keyClass:
+			property.type == 'map'
+				? (resolveThunk(property.keyCtorOrThunk) as Ctor | undefined)
+				: undefined,
+		values:
+			property.type == 'enum' ? Object.freeze([...property.values]) : undefined,
+		valueDescriptions:
+			property.type == 'enum' ? property.options.valueDescriptions : undefined,
+		required: !!options.required,
+		nullable: options.nullable !== false,
+		customSerialized: !!(options.serializer || options.deserializer),
+		default: options.default,
+		title: options.title,
+		description: options.description,
+		examples: options.examples,
+		schema: options.schema,
+	})
 }

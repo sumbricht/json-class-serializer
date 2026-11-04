@@ -37,19 +37,80 @@ export type KeyOrValue = 'key' | 'value'
 export const AnyType = Symbol('AnyType') as unknown as Ctor
 
 /**
+ * A JSON Schema (draft 2020-12) node, as produced by `generateSchema`.
+ */
+export type JsonSchema = boolean | JsonSchemaObject
+
+/**
+ * A JSON Schema (draft 2020-12) node that is an object (not `true` / `false`).
+ */
+export type JsonSchemaObject = { [keyword: string]: any }
+
+/**
+ * Replaces (object or boolean) or transforms (function) the JSON Schema node generated for a class or property.
+ */
+export type JsonSchemaOverride =
+	| JsonSchema
+	| ((generated: JsonSchemaObject) => JsonSchema)
+
+/**
+ * Descriptive metadata that is copied into the generated JSON Schema. It does not affect serialization.
+ */
+export interface JsonSchemaAnnotations {
+	/** Short title of the class or property (JSON Schema `title`). */
+	title?: string
+	/** Explanation for humans and agents (JSON Schema `description`). */
+	description?: string
+	/** Example values, as they appear in serialized JSON (JSON Schema `examples`). */
+	examples?: unknown[]
+}
+
+/**
  * Options for configuring how JsonClassSerializer treats the property annotated with `@jsonProperty`.
  */
-export interface JsonPropertyOptions {
+export interface JsonPropertyOptions extends JsonSchemaAnnotations {
 	serializer?: (value: any) => any
 	deserializer?: (value: any) => any
+	/**
+	 * Whether serialized JSON must contain this property. Schema only: the deserializer still accepts a missing property and keeps the class initializer's value. Default: false
+	 */
+	required?: boolean
+	/**
+	 * Whether the property (and the items, keys and values of a collection) may be `null`. Schema only: the deserializer still accepts `null`. Default: true
+	 */
+	nullable?: boolean
+	/**
+	 * Default value for the generated JSON Schema, given as it appears in serialized JSON. If omitted, the default is sampled from the class initializer.
+	 */
+	default?: unknown
+	/**
+	 * Replaces or transforms the generated JSON Schema of this property. The result is used as is (it is not made nullable or annotated afterwards).
+	 */
+	schema?: JsonSchemaOverride
+}
+
+/**
+ * Options for configuring how JsonClassSerializer treats the property annotated with `@jsonEnumProperty`.
+ */
+export interface JsonEnumPropertyOptions extends JsonPropertyOptions {
+	/** Description of each allowed value, keyed by the value. */
+	valueDescriptions?: Record<string, string>
 }
 
 /**
  * Options for configuring how JsonClassSerializer treats the class annotated with `@jsonClass`.
  */
-export interface JsonClassOptions {
+export interface JsonClassOptions extends JsonSchemaAnnotations {
 	serializer?: (value: any) => any
 	deserializer?: (value: any) => any
+	/**
+	 * Whether the class has no instances of its own, so the discriminator must always select a subclass. Schema only: the deserializer still instantiates the class if the discriminator is missing. Default: false
+	 */
+	abstract?: boolean
+	/**
+	 * Replaces or transforms the generated JSON Schema of this class. Needed for classes with a custom serializer, whose JSON cannot be derived from their properties.
+	 */
+	schema?: JsonSchemaOverride
 }
 
 export type JsonProperty = {
@@ -58,6 +119,7 @@ export type JsonProperty = {
 	| {
 			type: 'enum'
 			values: (string | number | boolean)[]
+			options: JsonEnumPropertyOptions
 	  }
 	| {
 			type: 'class'

@@ -28,9 +28,11 @@
 		"clean": "rm -rf dist"
 	},
 	"tsup": {
-		"entryPoints": [
-			"src/mod.ts"
-		],
+		"entry": {
+			"mod": "src/mod.ts",
+			"json-schema/index": "src/json-schema/index.ts"
+		},
+		"splitting": true,
 		"format": [
 			"esm",
 			"cjs"
@@ -59,10 +61,9 @@
 		"url": "https://github.com/sumbricht/json-class-serializer/issues"
 	},
 	"homepage": "https://github.com/sumbricht/json-class-serializer#readme",
-	"peerDependencies": {
-		"typebox": "*"
-	},
 	"devDependencies": {
+		"ajv": "^8.17.1",
+		"ajv-formats": "^3.0.1",
 		"prettier": "^3.6.2",
 		"tsup": "^8.5.0",
 		"typescript": "^5.9.2"
